@@ -1,7 +1,6 @@
-// src/sections/TripStatusSection.jsx
 import React from "react";
 import { Calendar, Compass, CheckCircle } from "lucide-react";
-import { Card, SectionHeader, OptionCard } from "../../ui/primitives";
+import { Card, SectionHeader, OptionCard } from "../../../ui/primitives";
 
 export default function TripStatusSection({ value, onChange }) {
   return (
@@ -17,7 +16,7 @@ export default function TripStatusSection({ value, onChange }) {
           active={value === "planning"}
           onClick={() => onChange("planning")}
           title="Planning to book"
-          description="Get timing, price ranges, visa reminders, and what to prioritize."
+          description="Get timing, price ranges, visa reminders, and priorities."
           icon={<Compass className="w-6 h-6" />}
           meta="Research mode"
         />
@@ -35,8 +34,9 @@ export default function TripStatusSection({ value, onChange }) {
       <div className="mt-5 rounded-[16px] border border-slate-200 bg-slate-50/60 p-4">
         <div className="text-[13px] font-semibold text-slate-900">Tip</div>
         <div className="mt-1 text-[13px] text-slate-600">
-          If you have flights/hotel confirmed, pick <span className="font-medium">Already booked</span>.
-          Otherwise pick <span className="font-medium">Planning to book</span>.
+          If you have flights/hotel confirmed, pick{" "}
+          <span className="font-medium">Already booked</span>. Otherwise pick{" "}
+          <span className="font-medium">Planning to book</span>.
         </div>
       </div>
     </Card>

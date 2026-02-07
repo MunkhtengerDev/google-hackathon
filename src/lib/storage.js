@@ -1,12 +1,7 @@
-// src/lib/storage.js
-export const STORAGE_KEY = "trip_planner_form_v1";
+export const STORAGE_KEY = "trip_planner_form_v2";
 
 export function safeParse(json) {
-  try {
-    return JSON.parse(json);
-  } catch {
-    return null;
-  }
+  try { return JSON.parse(json); } catch { return null; }
 }
 
 export function loadFromStorage() {

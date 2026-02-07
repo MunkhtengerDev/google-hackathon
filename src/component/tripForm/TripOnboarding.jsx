@@ -1,314 +1,270 @@
 import React, { useEffect, useMemo, useState } from "react";
+import PlannerShell from "../../ui/PlannerShell.jsx";
+import TransitionScreen from "../../ui/TransitionScreen.jsx";
+import { loadFromStorage, saveToStorage, clearStorage } from "../../lib/storage.js";
 
-// UI shell + transition
-import PlannerShell  from "../../ui/PlannerShell.jsx";
-import TransitionScreen from "../../ui/TransitionScreen";
-// storage
-import { loadFromStorage, saveToStorage, clearStorage } from "./storage";
+// Sections
+import TripStatusSection from "./sections/TripStatusSection.jsx";
+import HomeContextSection from "./sections/HomeContextSection.jsx";
+import DestinationSection from "./sections/DestinationSection.jsx";
+import SeasonSection from "./sections/SeasonSection.jsx";
+import BudgetSection from "./sections/BudgetSection.jsx";
 
-// your split sections
-import TripStatusSection from "./TripStatusSection";
-import DestinationSection from "./DestinationSection";
-import SeasonSection from "./SeasonSection";
-import BudgetSection from "./BudgetSection";
-import FoodSection from "./FoodSection";
-import MobilitySection from "./MobilitySection";
-import PreferencesSection from "./PreferencesSection";
-import PlanningInsightsSection from "./PlanningInsightsSection";
+// Visualizers
+import MapVisualizer from "./visualizers/MapVisualizer.jsx";
+import CalendarVisualizer from "./visualizers/CalendarVisualizer.jsx";
+import SummaryVisualizer from "./visualizers/SummaryVisualizer.jsx";
 
-// ----------------------------------
-// step config
-// ----------------------------------
-const STEPS = [
-  {
-    key: "status",
-    title: "Let’s start.",
-    transition: { title: "Got it.", subtitle: "Next: destination." },
-  },
-  {
-    key: "destination",
-    title: "Destination",
-    transition: { title: "Perfect.", subtitle: "Next: travel timing." },
-  },
-  {
-    key: "season",
-    title: "Timing",
-    transition: { title: "Nice.", subtitle: "Next: budget." },
-  },
-  {
-    key: "budget",
-    title: "Budget",
-    transition: { title: "Great.", subtitle: "Next: food preferences." },
-  },
-  {
-    key: "food",
-    title: "Food",
-    transition: { title: "Yum.", subtitle: "Next: mobility." },
-  },
-  {
-    key: "mobility",
-    title: "Mobility",
-    transition: { title: "Awesome.", subtitle: "Next: travel style." },
-  },
-  {
-    key: "prefs",
-    title: "Your style",
-    transition: { title: "All set.", subtitle: "Next: insights." },
-  },
-  {
-    key: "insights",
-    title: "Insights",
-    // last step no transition
-  },
-];
-
-// ----------------------------------
-// defaults
-// ----------------------------------
 function defaultState() {
   return {
-    tripStatus: "planning", // "planning" | "booked"
-    destination: { country: "", city: "", notes: "" },
+    tripStatus: "planning",
 
-    // NOTE: keep your same fields used by your own SeasonSection
-    // If your SeasonSection uses "duration" not "durationDays", keep "duration".
+    context: {
+      homeCountry: "",
+      departureCity: "",
+      currency: "USD",
+    },
+
+    destination: {
+      countries: [],
+      cities: [],
+      regions: [],
+      flexibility: "fixed",
+    },
+
     dates: {
       start: "",
       end: "",
-      duration: 7, // for planning mode
+      durationDays: 7,
+      timingPriority: [],
       seasonPref: "no_preference",
-      flexibility: [],
     },
 
-    // If your BudgetSection expects { currency, usdBudget, usdSavings } use that,
-    // If it expects { total, savings } then keep those.
-    // I'll support BOTH by storing BOTH and your sections can use whichever.
     budget: {
       currency: "USD",
       usdBudget: 0,
-      usdSavings: 0,
-      total: 0,
-      savings: 0,
+      priority: "balance",
+      spendingStyle: "track",
     },
-
-    food: { types: [], otherText: "", other: "" },
-    mobility: { modes: [], notes: "" },
-
-    // Also support both style shapes
-    prefs: { tags: [], text: "" },
-    travelStyle: { description: "", interests: [] },
   };
 }
 
+const STEPS = [
+  { key: "status", title: "Let’s start.", visual: "summary" },
+  { key: "context", title: "Home & Context", visual: "map" },
+  { key: "destination", title: "Destination", visual: "map" },
+  { key: "season", title: "Timing", visual: "calendar" },
+  { key: "budget", title: "Budget", visual: "summary" },
+];
+
+function mergeSafe(base, loaded) {
+  if (!loaded || typeof loaded !== "object") return base;
+  return {
+    ...base,
+    ...loaded,
+    context: { ...base.context, ...(loaded.context || {}) },
+    destination: { ...base.destination, ...(loaded.destination || {}) },
+    dates: { ...base.dates, ...(loaded.dates || {}) },
+    budget: { ...base.budget, ...(loaded.budget || {}) },
+  };
+}
+
+// “deep” next-step gating: we show a small transition screen if step is completed
+function isStepComplete(stepKey, data) {
+  if (stepKey === "status") return !!data.tripStatus;
+  if (stepKey === "context") return !!(data.context.homeCountry || data.context.departureCity);
+  if (stepKey === "destination") return (data.destination.countries?.length || data.destination.cities?.length || data.destination.regions?.length) > 0;
+  if (stepKey === "season") return !!data.dates.start;
+  if (stepKey === "budget") return Number(data.budget.usdBudget || 0) > 0;
+  return true;
+}
+
 export default function TripOnboarding() {
+  const mapsApiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+
   const [data, setData] = useState(defaultState());
   const [step, setStep] = useState(0);
+
+  // right side “live query”
+  const [rightQuery, setRightQuery] = useState("");
+
+  // transition screen
   const [showTransition, setShowTransition] = useState(false);
 
-  const stepsCount = STEPS.length;
-  const stepKey = STEPS[step]?.key;
-  const transitionCopy = STEPS[step]?.transition;
-
-  // Load storage once
   useEffect(() => {
-    const cached = loadFromStorage?.();
-    if (cached) {
-      setData((d) => ({ ...d, ...cached }));
-    }
+    const loaded = loadFromStorage();
+    setData((d) => mergeSafe(d, loaded));
   }, []);
 
-  // Save to storage on every change
   useEffect(() => {
-    saveToStorage?.(data);
+    saveToStorage(data);
   }, [data]);
 
-  // Validation per step
-  const canNext = useMemo(() => {
-    if (stepKey === "destination") {
-      return Boolean(data.destination?.country?.trim());
+  const stepConfig = STEPS[step];
+
+  const defaultMapQuery = useMemo(() => {
+    if (stepConfig.key === "context") {
+      return [data.context.departureCity, data.context.homeCountry].filter(Boolean).join(", ") || "World";
     }
-    // everything else optional by default
-    return true;
-  }, [stepKey, data.destination]);
+    if (stepConfig.key === "destination") {
+      const last =
+        data.destination.cities?.slice(-1)[0] ||
+        data.destination.regions?.slice(-1)[0] ||
+        data.destination.countries?.slice(-1)[0];
+      return last || "World";
+    }
+    return "World";
+  }, [stepConfig.key, data.context, data.destination]);
+
+  const markers = useMemo(() => {
+    const list = [
+      ...(data.destination.countries || []),
+      ...(data.destination.cities || []),
+      ...(data.destination.regions || []),
+    ];
+    // dedupe
+    return Array.from(new Set(list)).slice(0, 12);
+  }, [data.destination]);
+
+  const rightContent = useMemo(() => {
+    if (stepConfig.visual === "map") {
+      const query = rightQuery?.trim() ? rightQuery.trim() : defaultMapQuery;
+      return (
+        <MapVisualizer
+          apiKey={mapsApiKey}
+          query={query}
+          label={stepConfig.key === "context" ? "Home Base" : "Destination"}
+          markers={markers}
+        />
+      );
+    }
+
+    if (stepConfig.visual === "calendar") {
+      const location =
+        data.destination.cities?.[0] ||
+        data.destination.countries?.[0] ||
+        data.destination.regions?.[0] ||
+        [data.context.departureCity, data.context.homeCountry].filter(Boolean).join(", ");
+
+      return (
+        <CalendarVisualizer
+          startDate={data.dates.start}
+          endDate={data.dates.end}
+          title="Trip"
+          details="Created by Trip Planner"
+          location={location}
+        />
+      );
+    }
+
+    return <SummaryVisualizer data={data} />;
+  }, [stepConfig.visual, stepConfig.key, rightQuery, defaultMapQuery, mapsApiKey, markers, data]);
+
+  const resetAll = () => {
+    clearStorage();
+    setData(defaultState());
+    setStep(0);
+    setRightQuery("");
+    setShowTransition(false);
+  };
 
   const goNext = () => {
-    if (!canNext) return;
-    if (step >= stepsCount - 1) return;
+    const key = stepConfig.key;
+    const complete = isStepComplete(key, data);
 
-    // show transition if there is a transition copy
-    if (transitionCopy) {
+    // show micro-transition if user actually completed this step
+    if (complete) {
       setShowTransition(true);
       return;
     }
 
-    setStep((s) => Math.min(stepsCount - 1, s + 1));
+    // if not complete, still allow next (optional). If you want hard-lock, return here.
+    setStep((s) => Math.min(STEPS.length - 1, s + 1));
+    setRightQuery("");
   };
 
-  const goBack = () => setStep((s) => Math.max(0, s - 1));
-
-  const onTransitionDone = () => {
+  const finishTransition = () => {
     setShowTransition(false);
-    setStep((s) => Math.min(stepsCount - 1, s + 1));
+    setStep((s) => Math.min(STEPS.length - 1, s + 1));
+    setRightQuery("");
   };
 
-  const resetAll = () => {
-    clearStorage?.();
-    setData(defaultState());
-    setStep(0);
-    setShowTransition(false);
-  };
-
-  const renderStep = () => {
-    switch (stepKey) {
-      case "status":
-        return (
-          <TripStatusSection
-            value={data.tripStatus}
-            onChange={(tripStatus) => setData((d) => ({ ...d, tripStatus }))}
-          />
-        );
-
-      case "destination":
-        return (
-          <DestinationSection
-            tripStatus={data.tripStatus}
-            value={data.destination}
-            onChange={(destination) => setData((d) => ({ ...d, destination }))}
-          />
-        );
-
-      case "season":
-        return (
-          <SeasonSection
-            tripStatus={data.tripStatus}
-            value={data.dates}
-            onChange={(dates) => setData((d) => ({ ...d, dates }))}
-          />
-        );
-
-      case "budget":
-        return (
-          <BudgetSection
-            value={data.budget}
-            onChange={(budget) =>
-              setData((d) => ({
-                ...d,
-                budget: {
-                  ...d.budget,
-                  ...budget,
-                },
-              }))
-            }
-          />
-        );
-
-      case "food":
-        return (
-          <FoodSection
-            value={data.food}
-            onChange={(food) => setData((d) => ({ ...d, food }))}
-          />
-        );
-
-      case "mobility":
-        return (
-          <MobilitySection
-            value={data.mobility}
-            onChange={(mobility) => setData((d) => ({ ...d, mobility }))}
-          />
-        );
-
-      case "prefs":
-        return (
-          <PreferencesSection
-            value={data.prefs ?? data.travelStyle}
-            onChange={(prefsOrStyle) =>
-              setData((d) => ({
-                ...d,
-                prefs: prefsOrStyle, // your new components use prefs
-                travelStyle: prefsOrStyle, // your old ones might use travelStyle
-              }))
-            }
-          />
-        );
-
-      case "insights":
-        return (
-          <PlanningInsightsSection
-            destination={data.destination}
-            budget={data.budget}
-            dates={data.dates}
-          />
-        );
-
-      default:
-        return null;
-    }
+  const goBack = () => {
+    setStep((s) => Math.max(0, s - 1));
+    setRightQuery("");
   };
 
   return (
-    <PlannerShell stepIndex={step} stepsCount={stepsCount} title={STEPS[step]?.title}>
-      {/* optional "start over" */}
-      <div className="mb-4 flex justify-end">
-        {step > 0 ? (
-          <button
-            type="button"
-            onClick={resetAll}
-            className="text-[12px] font-medium text-slate-500 hover:text-slate-900"
-          >
-            Start over
-          </button>
-        ) : null}
-      </div>
-
-      {/* transition screen */}
-      {showTransition && transitionCopy ? (
+    <PlannerShell
+      stepIndex={step}
+      stepsCount={STEPS.length}
+      title={stepConfig.title}
+      rightContent={rightContent}
+      onReset={resetAll}
+    >
+      {showTransition ? (
         <TransitionScreen
-          title={transitionCopy.title}
-          subtitle={transitionCopy.subtitle}
-          onDone={onTransitionDone}
-          ms={700}
+          title="Nice."
+          subtitle="Moving to the next step…"
+          onDone={finishTransition}
         />
       ) : (
         <>
-          {renderStep()}
+          {stepConfig.key === "status" ? (
+            <TripStatusSection
+              value={data.tripStatus}
+              onChange={(v) => setData((d) => ({ ...d, tripStatus: v }))}
+            />
+          ) : null}
 
-          {/* bottom nav */}
-          <div className="mt-6 flex items-center justify-between gap-3">
+          {stepConfig.key === "context" ? (
+            <HomeContextSection
+              value={data.context}
+              onChange={(v) => setData((d) => ({ ...d, context: v }))}
+              mapsApiKey={mapsApiKey}
+              onFocusQuery={(q) => setRightQuery(q)}
+            />
+          ) : null}
+
+          {stepConfig.key === "destination" ? (
+            <DestinationSection
+              value={data.destination}
+              onChange={(v) => setData((d) => ({ ...d, destination: v }))}
+              mapsApiKey={mapsApiKey}
+              onFocusQuery={(q) => setRightQuery(q)}
+            />
+          ) : null}
+
+          {stepConfig.key === "season" ? (
+            <SeasonSection
+              tripStatus={data.tripStatus}
+              value={data.dates}
+              onChange={(v) => setData((d) => ({ ...d, dates: v }))}
+            />
+          ) : null}
+
+          {stepConfig.key === "budget" ? (
+            <BudgetSection
+              tripStatus={data.tripStatus}
+              value={data.budget}
+              onChange={(v) => setData((d) => ({ ...d, budget: v }))}
+            />
+          ) : null}
+
+          <div className="mt-8 flex items-center justify-between gap-3">
             <button
-              type="button"
               onClick={goBack}
-              disabled={step === 0}
-              className={[
-                "px-5 py-3 rounded-[14px] border text-[13px] font-medium transition-all",
-                step === 0
-                  ? "border-slate-200 text-slate-400 bg-white"
-                  : "border-slate-200 text-slate-700 bg-white hover:border-slate-300",
-              ].join(" ")}
+              className="px-4 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-[13px] font-semibold"
             >
               Back
             </button>
-
             <button
-              type="button"
               onClick={goNext}
-              disabled={!canNext || step === stepsCount - 1}
-              className={[
-                "px-5 py-3 rounded-[14px] text-[13px] font-medium transition-all",
-                !canNext || step === stepsCount - 1
-                  ? "bg-slate-200 text-slate-500"
-                  : "bg-slate-900 text-white hover:opacity-95",
-              ].join(" ")}
+              className="px-5 py-2.5 rounded-xl bg-slate-900 text-white hover:bg-slate-800 text-[13px] font-semibold shadow-sm"
             >
-              {step === stepsCount - 1 ? "Done" : "Continue"}
+              Continue
             </button>
           </div>
-
-          {!canNext && stepKey === "destination" ? (
-            <div className="mt-3 text-[12px] text-rose-600">
-              Please enter a country to continue.
-            </div>
-          ) : null}
         </>
       )}
     </PlannerShell>
