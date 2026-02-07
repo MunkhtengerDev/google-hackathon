@@ -205,18 +205,6 @@ export default function SignInPage({ onSuccess }) {
                 {error}
               </p>
             ) : null}
-
-            <div className="mt-6 rounded-2xl border border-[var(--line)] bg-[var(--surface-soft)] p-3">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[#697a83]">
-                OAuth Debug
-              </p>
-              <p className="mt-2 text-[12px] text-[#556871]">
-                Origin: <code>{currentOrigin}</code>
-              </p>
-              <p className="mt-1 text-[12px] text-[#556871]">
-                API: <code>{API_BASE_URL}/api/v1/users/google</code>
-              </p>
-            </div>
           </div>
         </Card>
       </div>
