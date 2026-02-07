@@ -33,6 +33,8 @@ const API_BASE_URL = (
 // --- 1. Constants & Helpers ---
 
 const ALLOWED_INTERESTS = new Set([
+  "city",
+  "culture",
   "history",
   "food",
   "nature",
@@ -41,6 +43,7 @@ const ALLOWED_INTERESTS = new Set([
   "relaxation",
   "nightlife",
   "shopping",
+  "photography",
 ]);
 
 // Definition of ALL possible steps
@@ -290,6 +293,38 @@ function normalizeStringArray(values) {
   return Array.from(new Set(cleaned));
 }
 
+function addAskedQuestion(list, key, question, answer) {
+  list.push({ key, question, answer });
+}
+
+function deriveTravelStyle(questionnaire) {
+  if (questionnaire.tripStatus !== "booked") return "solo";
+
+  const groupType = questionnaire.group?.who;
+  if (groupType === "couple") return "couple";
+  if (groupType === "family") return "family";
+  if (groupType === "friends") return "group";
+  if (groupType === "solo") return "solo";
+  return "solo";
+}
+
+function deriveMobilityPreference(questionnaire) {
+  const transportModes = normalizeStringArray(
+    questionnaire.mobility?.preferredTransport
+  );
+  const mobilityNotes = normalizeText(questionnaire.mobility?.notes).toLowerCase();
+
+  const hasLimitedMobilityHints =
+    mobilityNotes.includes("wheelchair") ||
+    mobilityNotes.includes("limited") ||
+    mobilityNotes.includes("avoid stairs");
+  if (hasLimitedMobilityHints) return "limited";
+
+  const nonWalkingModes = transportModes.filter((mode) => mode !== "walking");
+  if (nonWalkingModes.length > 0) return "transport";
+  return "walking";
+}
+
 function buildPreferencesPayload(data) {
   // Construct the main JSON structure
   const questionnaire = {
@@ -368,35 +403,326 @@ function buildPreferencesPayload(data) {
     },
   };
 
-  // Construct flat question/answer list for AI context
-  const askedQuestions = [
-    { key: "tripStatus", question: "Status", answer: questionnaire.tripStatus },
-    { key: "context.home", question: "Home", answer: questionnaire.context.homeCountry },
-    { key: "destination", question: "Places", answer: questionnaire.destination.countries },
-    { key: "budget.total", question: "Budget", answer: questionnaire.budget.usdBudget },
-    { key: "food.importance", question: "Food Priority", answer: questionnaire.food.importance },
-    { key: "mobility.transport", question: "Transport", answer: questionnaire.mobility.preferredTransport },
-    { key: "style.interests", question: "Interests", answer: questionnaire.style.interests },
-    { key: "permissions.save", question: "Save Data", answer: questionnaire.permissions.allowSaveForFuture },
-  ];
+  // Construct flat question/answer list for AI context (all asked questions)
+  const askedQuestions = [];
+
+  addAskedQuestion(
+    askedQuestions,
+    "tripStatus",
+    "What is your trip status?",
+    questionnaire.tripStatus
+  );
+
+  addAskedQuestion(
+    askedQuestions,
+    "context.homeCountry",
+    "What is your home country?",
+    questionnaire.context.homeCountry
+  );
+  addAskedQuestion(
+    askedQuestions,
+    "context.departureCity",
+    "What is your departure city?",
+    questionnaire.context.departureCity
+  );
+  addAskedQuestion(
+    askedQuestions,
+    "context.currency",
+    "What currency should be used?",
+    questionnaire.context.currency
+  );
+  addAskedQuestion(
+    askedQuestions,
+    "context.nearbyAirports",
+    "Should nearby airports be considered?",
+    questionnaire.context.nearbyAirports
+  );
+  addAskedQuestion(
+    askedQuestions,
+    "context.departureAirportCode",
+    "Do you have a preferred departure airport code?",
+    questionnaire.context.departureAirportCode
+  );
+
+  addAskedQuestion(
+    askedQuestions,
+    "destination.countries",
+    "Which destination countries do you want?",
+    questionnaire.destination.countries
+  );
+  addAskedQuestion(
+    askedQuestions,
+    "destination.cities",
+    "Which destination cities do you want?",
+    questionnaire.destination.cities
+  );
+  addAskedQuestion(
+    askedQuestions,
+    "destination.regions",
+    "Which destination regions/areas do you want?",
+    questionnaire.destination.regions
+  );
+  addAskedQuestion(
+    askedQuestions,
+    "destination.continents",
+    "Any preferred continents?",
+    questionnaire.destination.continents
+  );
+  addAskedQuestion(
+    askedQuestions,
+    "destination.flexibility",
+    "How flexible are your destinations?",
+    questionnaire.destination.flexibility
+  );
+  addAskedQuestion(
+    askedQuestions,
+    "destination.dayTripsPlanned",
+    "Do you want day trips included?",
+    questionnaire.destination.dayTripsPlanned
+  );
+
+  addAskedQuestion(
+    askedQuestions,
+    "dates.start",
+    "What is your start date?",
+    questionnaire.dates.start
+  );
+  addAskedQuestion(
+    askedQuestions,
+    "dates.end",
+    "What is your end date?",
+    questionnaire.dates.end
+  );
+  addAskedQuestion(
+    askedQuestions,
+    "dates.durationDays",
+    "How many travel days do you want?",
+    questionnaire.dates.durationDays
+  );
+  addAskedQuestion(
+    askedQuestions,
+    "dates.canChangeDates",
+    "Can your dates be changed?",
+    questionnaire.dates.canChangeDates
+  );
+  addAskedQuestion(
+    askedQuestions,
+    "dates.timingPriority",
+    "What timing priorities matter most?",
+    questionnaire.dates.timingPriority
+  );
+  addAskedQuestion(
+    askedQuestions,
+    "dates.seasonPref",
+    "What is your season preference?",
+    questionnaire.dates.seasonPref
+  );
+
+  addAskedQuestion(
+    askedQuestions,
+    "budget.currency",
+    "What budget display currency do you prefer?",
+    questionnaire.budget.currency
+  );
+  addAskedQuestion(
+    askedQuestions,
+    "budget.usdBudget",
+    "What is your total budget in USD?",
+    questionnaire.budget.usdBudget
+  );
+  addAskedQuestion(
+    askedQuestions,
+    "budget.budgetType",
+    "Is this budget total or per day?",
+    questionnaire.budget.budgetType
+  );
+  addAskedQuestion(
+    askedQuestions,
+    "budget.priority",
+    "What is your budget priority?",
+    questionnaire.budget.priority
+  );
+  addAskedQuestion(
+    askedQuestions,
+    "budget.spendingStyle",
+    "What is your spending style?",
+    questionnaire.budget.spendingStyle
+  );
+  addAskedQuestion(
+    askedQuestions,
+    "budget.savedAmountUsd",
+    "How much have you already saved (USD)?",
+    questionnaire.budget.savedAmountUsd
+  );
+  addAskedQuestion(
+    askedQuestions,
+    "budget.isFlexible",
+    "Is your budget flexible?",
+    questionnaire.budget.isFlexible
+  );
+  addAskedQuestion(
+    askedQuestions,
+    "budget.emergencyBufferUsd",
+    "Do you have an emergency buffer (USD)?",
+    questionnaire.budget.emergencyBufferUsd
+  );
+
+  addAskedQuestion(
+    askedQuestions,
+    "food.importance",
+    "How important is food for this trip?",
+    questionnaire.food.importance
+  );
+  addAskedQuestion(
+    askedQuestions,
+    "food.diet",
+    "What are your food preferences or restrictions?",
+    questionnaire.food.diet
+  );
+  addAskedQuestion(
+    askedQuestions,
+    "food.notes",
+    "Any allergy or food notes?",
+    questionnaire.food.notes
+  );
+
+  addAskedQuestion(
+    askedQuestions,
+    "mobility.preferredTransport",
+    "How do you prefer to move around?",
+    questionnaire.mobility.preferredTransport
+  );
+  addAskedQuestion(
+    askedQuestions,
+    "mobility.comfortRange",
+    "What is your comfort travel range?",
+    questionnaire.mobility.comfortRange
+  );
+  addAskedQuestion(
+    askedQuestions,
+    "mobility.notes",
+    "Any mobility notes?",
+    questionnaire.mobility.notes
+  );
+
+  addAskedQuestion(
+    askedQuestions,
+    "style.interests",
+    "What interests do you want to prioritize?",
+    questionnaire.style.interests
+  );
+  addAskedQuestion(
+    askedQuestions,
+    "style.travelPace",
+    "What travel pace do you prefer?",
+    questionnaire.style.travelPace
+  );
+  addAskedQuestion(
+    askedQuestions,
+    "style.hates",
+    "What do you want to avoid?",
+    questionnaire.style.hates
+  );
+  addAskedQuestion(
+    askedQuestions,
+    "style.tasteText",
+    "How would you describe your travel taste?",
+    questionnaire.style.tasteText
+  );
+  addAskedQuestion(
+    askedQuestions,
+    "style.pastLoved",
+    "Any past places/experiences you loved?",
+    questionnaire.style.pastLoved
+  );
 
   if (questionnaire.tripStatus === "booked") {
     askedQuestions.push(
-      { key: "group.who", question: "Group", answer: questionnaire.group.who },
-      { key: "accommodation.status", question: "Hotel Status", answer: questionnaire.accommodation.status },
-      { key: "goals.sentence", question: "Goal", answer: questionnaire.goals.oneSentenceGoal }
+      {
+        key: "group.who",
+        question: "Who are you traveling with?",
+        answer: questionnaire.group.who,
+      },
+      {
+        key: "group.totalPeople",
+        question: "How many people are in your group?",
+        answer: questionnaire.group.totalPeople,
+      },
+      {
+        key: "group.adults",
+        question: "How many adults are in your group?",
+        answer: questionnaire.group.adults,
+      },
+      {
+        key: "group.childrenAges",
+        question: "What are children ages in your group?",
+        answer: questionnaire.group.childrenAges,
+      },
+      {
+        key: "accommodation.status",
+        question: "What is your accommodation booking status?",
+        answer: questionnaire.accommodation.status,
+      },
+      {
+        key: "accommodation.type",
+        question: "What accommodation type do you prefer?",
+        answer: questionnaire.accommodation.type,
+      },
+      {
+        key: "accommodation.preference",
+        question: "What accommodation location preferences matter?",
+        answer: questionnaire.accommodation.preference,
+      },
+      {
+        key: "goals.experienceGoals",
+        question: "What are your top experience goals?",
+        answer: questionnaire.goals.experienceGoals,
+      },
+      {
+        key: "goals.oneSentenceGoal",
+        question: "What is your one-sentence trip goal?",
+        answer: questionnaire.goals.oneSentenceGoal,
+      }
     );
   }
 
+  addAskedQuestion(
+    askedQuestions,
+    "permissions.allowAltDestinations",
+    "Can AI suggest alternative destinations?",
+    questionnaire.permissions.allowAltDestinations
+  );
+  addAskedQuestion(
+    askedQuestions,
+    "permissions.allowBudgetOptimize",
+    "Can AI optimize your budget automatically?",
+    questionnaire.permissions.allowBudgetOptimize
+  );
+  addAskedQuestion(
+    askedQuestions,
+    "permissions.allowDailyAdjust",
+    "Can AI adjust your plan daily?",
+    questionnaire.permissions.allowDailyAdjust
+  );
+  addAskedQuestion(
+    askedQuestions,
+    "permissions.allowSaveForFuture",
+    "Can AI save your preferences for future trips?",
+    questionnaire.permissions.allowSaveForFuture
+  );
+
+  const normalizedDiets = normalizeStringArray(data.food?.diet);
+
   return {
     // Derived high-level tags for easy filtering
-    travelStyle: data.tripStatus === "booked" ? "couple" : "solo",
+    travelStyle: deriveTravelStyle(questionnaire),
     budgetLevel: mapBudgetLevel(questionnaire.budget.usdBudget),
-    interests: normalizeStringArray(data.style?.interests),
-    mobilityPreference:
-      (data.destination.cities?.length || 0) > 1 ? "transport" : "walking",
-    foodPreferences: normalizeStringArray(data.food?.diet),
-    
+    interests: normalizeStringArray(data.style?.interests).filter((item) =>
+      ALLOWED_INTERESTS.has(item)
+    ),
+    mobilityPreference: deriveMobilityPreference(questionnaire),
+    foodPreferences: normalizedDiets.length > 0 ? normalizedDiets : ["no_preference"],
+
     // The full detailed object
     questionnaire: {
       ...questionnaire,
