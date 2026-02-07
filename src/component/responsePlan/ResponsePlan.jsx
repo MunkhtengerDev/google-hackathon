@@ -1,5 +1,4 @@
-
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState, useRef } from "react";
 import {
   Brain,
   Route,
@@ -14,92 +13,71 @@ import {
   MapPin,
   Clock,
   Sparkles,
-
+  Loader2,
 } from "lucide-react";
 import { Card, SectionHeader } from "../../ui/primitives";
 import LiveResponseRenderer from "../ai/LiveResponseRenderer";
 
+// --- Helpers ---
+
 function formatTimestamp(value) {
-  if (!value) return 'Not available';
+  if (!value) return "Not available";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return String(value);
   return date.toLocaleString();
 }
 
-/**
- * Minimal markdown parser for your AI output:
- * - Splits by H2 (##) into sections
- * - Keeps content as plain text blocks
- * - Also extracts a quick "Budget Allocation" list if present
- */
-function parseMarkdownSections(md = '') {
-  const text = String(md || '').trim();
+function parseMarkdownSections(md = "") {
+  const text = String(md || "").trim();
   if (!text) return [];
-
-  // Normalize line endings
-  const normalized = text.replace(/\r\n/g, '\n');
-
-  // Split by "## "
+  const normalized = text.replace(/\r\n/g, "\n");
   const parts = normalized.split(/\n(?=##\s+)/g);
-
-  // If the response doesn't contain "##", treat as one section
   if (parts.length === 1 && !/^##\s+/.test(parts[0])) {
-    return [{ title: 'AI Response', content: normalized }];
+    return [{ title: "AI Response", content: normalized }];
   }
-
-  const sections = parts
+  return parts
     .map((block) => block.trim())
     .filter(Boolean)
     .map((block) => {
-      const lines = block.split('\n');
-      const first = lines[0] || '';
-      const title = first.replace(/^##\s+/, '').trim() || 'Untitled';
-      const content = lines.slice(1).join('\n').trim();
+      const lines = block.split("\n");
+      const title = lines[0].replace(/^##\s+/, "").trim() || "Untitled";
+      const content = lines.slice(1).join("\n").trim();
       return { title, content };
     });
-
-  return sections;
 }
 
-/** Extract budget lines like "* Flights: $1500" from a "Budget Allocation" section */
 function extractBudgetItems(sections) {
-  const target = sections.find((s) => /budget allocation/i.test(s.title || ''));
+  const target = sections.find((s) => /budget allocation/i.test(s.title || ""));
   if (!target?.content) return [];
-
-  const lines = target.content.split('\n').map((l) => l.trim());
+  const lines = target.content.split("\n").map((l) => l.trim());
   const items = [];
   for (const line of lines) {
-    // match "- **Flights ...:** $1500" or "* Flights ...: $1500"
     const cleaned = line
-      .replace(/^[*\-]\s+/, '')
-      .replace(/\*\*/g, '')
+      .replace(/^[*\-]\s+/, "")
+      .replace(/\*\*/g, "")
       .trim();
-
     const m = cleaned.match(/^(.+?):\s*(.+)$/);
-    if (m) {
-      items.push({ label: m[1].trim(), value: m[2].trim() });
-    }
+    if (m) items.push({ label: m[1].trim(), value: m[2].trim() });
   }
   return items;
 }
 
-/** Simple “day-by-day” extractor (looks for "Day 1:", "Day 2:" etc.) */
 function extractDays(sections) {
   const target = sections.find((s) =>
-    /(day-by-day|itinerary)/i.test(s.title || ''),
+    /(day-by-day|itinerary)/i.test(s.title || "")
   );
   if (!target?.content) return [];
-  const lines = target.content.split('\n');
+  const lines = target.content.split("\n");
   const days = [];
   for (const raw of lines) {
     const line = raw.trim();
     const m = line.match(/^(?:[*\-]\s*)?\*\*?Day\s+(\d+)\s*\*?\*?:\s*(.+)$/i);
-    if (m) {
-      days.push({ day: Number(m[1]), text: m[2].trim() });
-    }
+    if (m) days.push({ day: Number(m[1]), text: m[2].trim() });
   }
   return days;
 }
+
+// --- Internal Components ---
 
 function NavItem({ active, icon, label, onClick, badge }) {
   return (
@@ -107,20 +85,20 @@ function NavItem({ active, icon, label, onClick, badge }) {
       type="button"
       onClick={onClick}
       className={[
-        'group w-full rounded-2xl px-3.5 py-3 text-left transition',
+        "group w-full rounded-2xl px-3.5 py-3 text-left transition",
         active
-          ? 'bg-[#0b5b57] text-white shadow-[0_14px_30px_rgba(11,91,87,0.20)]'
-          : 'bg-transparent text-[#2f4954] hover:bg-[#fff3df]',
-      ].join(' ')}
+          ? "bg-[#0b5b57] text-white shadow-[0_14px_30px_rgba(11,91,87,0.20)]"
+          : "bg-transparent text-[#2f4954] hover:bg-[#fff3df]",
+      ].join(" ")}
     >
       <div className="flex items-center gap-3">
         <div
           className={[
-            'grid h-9 w-9 place-items-center rounded-xl border transition',
+            "grid h-9 w-9 place-items-center rounded-xl border transition",
             active
-              ? 'border-white/20 bg-white/10'
-              : 'border-[#e8dcc8] bg-[#fffaf1] group-hover:bg-white',
-          ].join(' ')}
+              ? "border-white/20 bg-white/10"
+              : "border-[#e8dcc8] bg-[#fffaf1] group-hover:bg-white",
+          ].join(" ")}
         >
           {icon}
         </div>
@@ -130,11 +108,11 @@ function NavItem({ active, icon, label, onClick, badge }) {
             {badge ? (
               <span
                 className={[
-                  'rounded-full px-2 py-0.5 text-[10px] font-bold',
+                  "rounded-full px-2 py-0.5 text-[10px] font-bold",
                   active
-                    ? 'bg-white/15 text-white'
-                    : 'bg-[#ffe6bf] text-[#6a4a12]',
-                ].join(' ')}
+                    ? "bg-white/15 text-white"
+                    : "bg-[#ffe6bf] text-[#6a4a12]",
+                ].join(" ")}
               >
                 {badge}
               </span>
@@ -142,9 +120,9 @@ function NavItem({ active, icon, label, onClick, badge }) {
           </div>
           <div
             className={[
-              'mt-0.5 flex items-center gap-1 text-[11px]',
-              active ? 'text-white/75' : 'text-[#74878f]',
-            ].join(' ')}
+              "mt-0.5 flex items-center gap-1 text-[11px]",
+              active ? "text-white/75" : "text-[#74878f]",
+            ].join(" ")}
           >
             <ChevronRight className="h-3 w-3" />
             View details
@@ -177,25 +155,173 @@ function EmptyState({ title, subtitle }) {
   );
 }
 
-/**
- * Main dashboard component
- * - Pass your AI response string (tripPlanText or resultText)
- */
-export default function ResponsePlan({
+// --- UPDATED MAP COMPONENT ---
+function LiveRouteMap({ items = [] }) {
+  const mapRef = useRef(null);
+  const [mapObj, setMapObj] = useState(null);
+  const [directionsResponse, setDirectionsResponse] = useState(null);
+  const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
 
+  const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+
+  // 1. Load Google Maps Script & Handle Auth Errors
+  useEffect(() => {
+    // Handle the specific "Invalid Key" error from Google
+    window.gm_authFailure = () => {
+      console.error("Google Maps Authentication Failed. Check your API Key.");
+      setError("Map unavailable: API Key invalid or billing disabled.");
+      setIsLoading(false);
+    };
+
+    if (!apiKey) {
+      setError("Missing VITE_GOOGLE_MAPS_API_KEY in .env file");
+      setIsLoading(false);
+      return;
+    }
+
+    if (!window.google) {
+      const script = document.createElement("script");
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places,geometry`;
+      script.async = true;
+      script.onload = () => {
+        // Script loaded, waiting for map init
+      };
+      script.onerror = () => {
+        setIsLoading(false);
+        setError("Failed to load Google Maps script (Network error).");
+      };
+      document.head.appendChild(script);
+    } else {
+      // API already loaded
+      setIsLoading(false);
+    }
+  }, [apiKey]);
+
+  // 2. Initialize Map
+  useEffect(() => {
+    if (isLoading || error || !mapRef.current || mapObj || !window.google) return;
+
+    try {
+      const mapInstance = new window.google.maps.Map(mapRef.current, {
+        zoom: 2,
+        center: { lat: 20, lng: 0 },
+        disableDefaultUI: true,
+        zoomControl: true,
+        styles: [
+          {
+            featureType: "water",
+            elementType: "geometry",
+            stylers: [{ color: "#e9e9e9" }, { lightness: 17 }],
+          },
+          {
+            featureType: "landscape",
+            elementType: "geometry",
+            stylers: [{ color: "#f5f5f5" }, { lightness: 20 }],
+          },
+        ],
+      });
+      setMapObj(mapInstance);
+      setIsLoading(false);
+    } catch (e) {
+      console.error("Map Init Error:", e);
+      setError("Error initializing map.");
+      setIsLoading(false);
+    }
+  }, [isLoading, error, mapObj]);
+
+  // 3. Calculate Route
+  useEffect(() => {
+    if (!mapObj || !items.length || !window.google || error) return;
+
+    const directionsService = new window.google.maps.DirectionsService();
+    const directionsRenderer = new window.google.maps.DirectionsRenderer({
+      map: mapObj,
+      suppressMarkers: false,
+      polylineOptions: {
+        strokeColor: "#0b5b57",
+        strokeWeight: 4,
+      },
+    });
+
+    const originText = items[0]?.text || "";
+    const destText = items[items.length - 1]?.text || "";
+
+    // Need at least Origin + Destination to route
+    if (originText && destText && items.length > 1) {
+      // Gather waypoints (items between first and last)
+      const waypoints = items.slice(1, -1).map((item) => ({
+        location: item.text,
+        stopover: true,
+      }));
+
+      directionsService.route(
+        {
+          origin: originText,
+          destination: destText,
+          waypoints: waypoints.slice(0, 10), // Limit to 10 waypoints (free tier limit)
+          travelMode: window.google.maps.TravelMode.DRIVING,
+        },
+        (result, status) => {
+          if (status === window.google.maps.DirectionsStatus.OK) {
+            setDirectionsResponse(result);
+            directionsRenderer.setDirections(result);
+          } else {
+            console.warn("Routing failed:", status);
+            // Don't set global error, just log it. The map will still show, just no line.
+          }
+        }
+      );
+    }
+
+    return () => {
+      directionsRenderer.setMap(null);
+    };
+  }, [mapObj, items, error]);
+
+  // --- RENDER STATES ---
+
+  if (error) {
+    return (
+      <div className="flex h-full w-full flex-col items-center justify-center rounded-[18px] bg-[#f8f5f2] p-6 text-center">
+        <div className="mb-2 rounded-full bg-[#fee2e2] p-3 text-red-500">
+          <Sparkles className="h-6 w-6" /> 
+        </div>
+        <div className="text-[13px] font-bold text-[#7f1d1d]">Map Unavailable</div>
+        <div className="mt-1 max-w-[200px] text-[12px] text-[#991b1b]">
+          {error}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative h-full w-full overflow-hidden rounded-[18px] bg-[#e5e7eb]">
+      {isLoading && (
+        <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/80">
+          <Loader2 className="h-6 w-6 animate-spin text-[#0b5b57]" />
+        </div>
+      )}
+      <div ref={mapRef} className="h-full w-full" />
+    </div>
+  );
+}
+
+// --- MAIN COMPONENT ---
+
+export default function ResponsePlan({
   title = "Trip Dashboard",
   subtitle = "Switch views from the sidebar to explore your plan.",
   responseText = "",
   planResponseText = "",
   liveResponseText = "",
   isLoading = false,
-  loadError = '',
-  lastPlanAt = '',
-  lastLiveAt = '',
+  loadError = "",
+  lastPlanAt = "",
+  lastLiveAt = "",
   onRefresh,
   rightNowContext,
 }) {
-
   const [active, setActive] = useState("smart");
   const [selectedPlanId, setSelectedPlanId] = useState("");
   const smartPlanCount = 3;
@@ -204,33 +330,31 @@ export default function ResponsePlan({
 
   const sections = useMemo(
     () => parseMarkdownSections(sourcePlanText),
-    [sourcePlanText],
+    [sourcePlanText]
   );
 
   const days = useMemo(() => extractDays(sections), [sections]);
   const budgetItems = useMemo(() => extractBudgetItems(sections), [sections]);
 
-  // "Smart plans": we generate options by slicing itinerary days into variants
   const smartPlans = useMemo(() => {
     const count = smartPlanCount;
     const base = days.length
       ? days
-      : [{ day: 1, text: 'No itinerary parsed yet.' }];
+      : [{ day: 1, text: "No itinerary parsed yet." }];
 
-    // Create simple variants by shifting emphasis (early/mid/late)
     const variants = [];
     for (let i = 0; i < count; i++) {
-      const offset = i % 3; // 0/1/2
+      const offset = i % 3;
       const chunk = base.slice(offset, offset + Math.min(10, base.length));
       variants.push({
         id: `plan_${i}`,
         name: `Option ${i + 1}`,
         highlight:
           offset === 0
-            ? 'Classic pace • balanced'
+            ? "Classic pace • balanced"
             : offset === 1
-              ? 'Faster pace • more sights'
-              : 'Slower pace • more comfort',
+            ? "Faster pace • more sights"
+            : "Slower pace • more comfort",
         items: chunk,
       });
     }
@@ -279,33 +403,33 @@ export default function ResponsePlan({
 
           <div className="space-y-2">
             <NavItem
-              active={active === 'smart'}
-              onClick={() => setActive('smart')}
+              active={active === "smart"}
+              onClick={() => setActive("smart")}
               label="🧠 Smart Plans"
               badge={`${smartPlanCount}`}
               icon={<Brain className="h-4 w-4" />}
             />
             <NavItem
-              active={active === 'route'}
-              onClick={() => setActive('route')}
+              active={active === "route"}
+              onClick={() => setActive("route")}
               label="🗺️ Live Route"
               icon={<Route className="h-4 w-4" />}
             />
             <NavItem
-              active={active === 'wallet'}
-              onClick={() => setActive('wallet')}
+              active={active === "wallet"}
+              onClick={() => setActive("wallet")}
               label="💰 Wallet"
               icon={<Wallet className="h-4 w-4" />}
             />
             <NavItem
-              active={active === 'memories'}
-              onClick={() => setActive('memories')}
+              active={active === "memories"}
+              onClick={() => setActive("memories")}
               label="📸 Memories"
               icon={<Camera className="h-4 w-4" />}
             />
             <NavItem
-              active={active === 'rightnow'}
-              onClick={() => setActive('rightnow')}
+              active={active === "rightnow"}
+              onClick={() => setActive("rightnow")}
               label="⚡ Right Now"
               icon={<Zap className="h-4 w-4" />}
             />
@@ -376,12 +500,12 @@ export default function ResponsePlan({
                     type="button"
                     onClick={() => {
                       const blob = new Blob([sourcePlanText], {
-                        type: 'text/plain;charset=utf-8',
+                        type: "text/plain;charset=utf-8",
                       });
                       const url = URL.createObjectURL(blob);
-                      const a = document.createElement('a');
+                      const a = document.createElement("a");
                       a.href = url;
-                      a.download = 'trip-plan.txt';
+                      a.download = "trip-plan.txt";
                       a.click();
                       URL.revokeObjectURL(url);
                     }}
@@ -394,14 +518,13 @@ export default function ResponsePlan({
               </div>
             </Card>
 
-            {active === 'smart' ? (
+            {active === "smart" ? (
               <Card>
                 <SectionHeader
                   icon={<Brain className="h-5 w-5" />}
                   title="Smart Plans"
                   subtitle="Generated options (3) you can pick and refine."
                   right={
-
                     <div className="rounded-full border border-[var(--line)] bg-white px-3 py-1.5 text-xs font-semibold text-[#2f4954]">
                       Options: 3
                     </div>
@@ -460,12 +583,6 @@ export default function ResponsePlan({
                             </div>
                           </div>
                         ))}
-                        {!days.length ? (
-                          <div className="text-[12px] text-[#6a7b84]">
-                            Couldn’t parse “Day X” lines yet. Still showing the
-                            response in other tabs.
-                          </div>
-                        ) : null}
                       </div>
                     </div>
                   ))}
@@ -473,7 +590,7 @@ export default function ResponsePlan({
               </Card>
             ) : null}
 
-            {active === 'route' ? (
+            {active === "route" ? (
               <Card>
                 <SectionHeader
                   icon={<Route className="h-5 w-5" />}
@@ -492,19 +609,16 @@ export default function ResponsePlan({
                 />
 
                 <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
-                  {/* Map panel placeholder */}
+                  {/* Map panel - NOW ACTIVE */}
                   <div className="lg:col-span-7">
-                    <div className="h-[360px] overflow-hidden rounded-[22px] border border-[#e8dcc8] bg-[#fffaf1] p-4">
-                      <div className="text-[12px] font-bold text-[#2f4954]">
-                        Map Panel
-                      </div>
-                      <div className="mt-1 text-[12px] text-[#6a7b84]">
-                        Replace this box with your Google Maps component
-                        (DirectionsService + DirectionsRenderer).
-                      </div>
-                      <div className="mt-4 grid h-[270px] place-items-center rounded-[18px] border border-dashed border-[#e0d3be] bg-white text-[12px] text-[#6a7b84]">
-                        Google Maps goes here
-                      </div>
+                    <div className="h-[400px] overflow-hidden rounded-[22px] border border-[#e8dcc8] bg-[#fffaf1] p-1 shadow-inner">
+                      {selectedPlan?.items?.length ? (
+                        <LiveRouteMap items={selectedPlan.items} />
+                      ) : (
+                        <div className="grid h-full place-items-center text-[13px] text-[#6a7b84]">
+                          Select a plan to visualize the route.
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -518,13 +632,13 @@ export default function ResponsePlan({
                         Uses the selected smart plan as the active route.
                       </div>
 
-                      <div className="mt-4 space-y-2">
-                        {(selectedPlan?.items || []).slice(0, 8).map((d) => (
+                      <div className="mt-4 space-y-2 max-h-[320px] overflow-y-auto pr-2 custom-scrollbar">
+                        {(selectedPlan?.items || []).map((d) => (
                           <div
                             key={`route_${selectedPlan?.id || "none"}_${d.day}`}
                             className="flex items-start gap-3 rounded-2xl border border-[#ece2d4] bg-[#fffaf1] px-3 py-2"
                           >
-                            <div className="rounded-full bg-white px-2 py-0.5 text-[11px] font-bold text-[#2f4954]">
+                            <div className="shrink-0 rounded-full bg-white px-2 py-0.5 text-[11px] font-bold text-[#2f4954]">
                               Day {d.day}
                             </div>
                             <div className="text-[12px] leading-relaxed text-[#2f4954]">
@@ -532,12 +646,6 @@ export default function ResponsePlan({
                             </div>
                           </div>
                         ))}
-                        {!selectedPlan?.items?.length ? (
-                          <div className="text-[12px] text-[#6a7b84]">
-                            Select one of the 3 smart options to build route
-                            timeline.
-                          </div>
-                        ) : null}
                       </div>
                     </div>
                   </div>
@@ -545,12 +653,12 @@ export default function ResponsePlan({
               </Card>
             ) : null}
 
-            {active === 'wallet' ? (
+            {active === "wallet" ? (
               <Card>
                 <SectionHeader
                   icon={<Wallet className="h-5 w-5" />}
                   title="Wallet"
-                  subtitle="Budget breakdown + currency (connect to your currency conversion logic)."
+                  subtitle="Budget breakdown + currency."
                 />
 
                 <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
@@ -559,9 +667,6 @@ export default function ResponsePlan({
                       <div className="border-b border-[#eee3d2] bg-[#fffaf1] px-4 py-3">
                         <div className="text-[12px] font-bold text-[#2f4954]">
                           Budget Allocation
-                        </div>
-                        <div className="mt-0.5 text-[12px] text-[#6a7b84]">
-                          Parsed from “Budget Allocation” section.
                         </div>
                       </div>
 
@@ -584,8 +689,7 @@ export default function ResponsePlan({
                           </div>
                         ) : (
                           <div className="text-[12px] text-[#6a7b84]">
-                            Couldn’t parse “Budget Allocation” yet. Keep the raw
-                            section available in “All Sections”.
+                            Couldn’t parse “Budget Allocation” yet.
                           </div>
                         )}
                       </div>
@@ -597,16 +701,12 @@ export default function ResponsePlan({
                       <div className="text-[12px] font-bold text-[#2f4954]">
                         Wallet Tools
                       </div>
-                      <div className="mt-1 text-[12px] text-[#6a7b84]">
-                        Add currency conversion, spend tracking, and alerts.
-                      </div>
-
                       <div className="mt-4 space-y-2">
                         {[
-                          'Convert home currency → destination currency',
-                          'Daily spending limit suggestions',
-                          'Track hotels / tickets / activities',
-                          'Overspend risk alerts',
+                          "Convert home currency → destination currency",
+                          "Daily spending limit suggestions",
+                          "Track hotels / tickets / activities",
+                          "Overspend risk alerts",
                         ].map((t) => (
                           <div
                             key={t}
@@ -622,83 +722,25 @@ export default function ResponsePlan({
               </Card>
             ) : null}
 
-            {active === 'memories' ? (
+            {active === "memories" ? (
               <Card>
                 <SectionHeader
                   icon={<Camera className="h-5 w-5" />}
                   title="Memories"
-                  subtitle="Integrate Google Drive / Photos. Save itinerary + images per day."
+                  subtitle="Integrate Google Drive / Photos."
                 />
-
-                <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
-                  <div className="lg:col-span-7">
-                    <div className="rounded-[22px] border border-[#e8dcc8] bg-[#fffaf1] p-4">
-                      <div className="text-[12px] font-bold text-[#2f4954]">
-                        Trip Album (Placeholder)
-                      </div>
-                      <div className="mt-1 text-[12px] text-[#6a7b84]">
-                        Show uploaded photos, AI captions, and day tags.
-                      </div>
-
-                      <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
-                        {Array.from({ length: 6 }).map((_, i) => (
-                          <div
-                            key={`mem_${i}`}
-                            className="aspect-square overflow-hidden rounded-[18px] border border-[#eadfcf] bg-white"
-                          >
-                            <div className="grid h-full place-items-center text-[12px] text-[#6a7b84]">
-                              Photo {i + 1}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="lg:col-span-5">
-                    <div className="rounded-[22px] border border-[#e8dcc8] bg-white p-4">
-                      <div className="text-[12px] font-bold text-[#2f4954]">
-                        Save & Organize
-                      </div>
-                      <div className="mt-1 text-[12px] text-[#6a7b84]">
-                        Suggested structure (Drive folders):
-                      </div>
-
-                      <div className="mt-4 space-y-2">
-                        {[
-                          'Trip / Paris / Day-01',
-                          'Trip / Paris / Day-02',
-                          'Trip / Spain / Day-10',
-                          'Trip / Receipts / Wallet',
-                        ].map((t) => (
-                          <div
-                            key={t}
-                            className="flex items-center justify-between gap-3 rounded-2xl border border-[#ece2d4] bg-[#fffaf1] px-3 py-2"
-                          >
-                            <div className="text-[12px] font-semibold text-[#2f4954]">
-                              {t}
-                            </div>
-                            <button
-                              type="button"
-                              className="rounded-full border border-[#eadfcf] bg-white px-3 py-1.5 text-[11px] font-bold text-[#2f4954] hover:bg-[#fff8eb]"
-                            >
-                              Create
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
+                <div className="rounded-[22px] border border-[#e8dcc8] bg-[#fffaf1] p-4 text-center text-[#6a7b84] text-[13px]">
+                  Memory features coming soon.
                 </div>
               </Card>
             ) : null}
 
-            {active === 'rightnow' ? (
+            {active === "rightnow" ? (
               <Card>
                 <SectionHeader
                   icon={<Zap className="h-5 w-5" />}
                   title="Right Now"
-                  subtitle="Real-time recommendations based on current location/time."
+                  subtitle="Real-time recommendations."
                 />
 
                 <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
@@ -707,26 +749,22 @@ export default function ResponsePlan({
                       <div className="text-[12px] font-bold text-[#2f4954]">
                         Quick Actions
                       </div>
-                      <div className="mt-1 text-[12px] text-[#6a7b84]">
-                        Ideal for “next 1–3 hours” prompts.
-                      </div>
-
                       <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
                         {[
                           {
-                            t: 'Find nearby art museums',
+                            t: "Find nearby art museums",
                             i: <MapPin className="h-4 w-4" />,
                           },
                           {
-                            t: 'Best cafe within 15 min walk',
+                            t: "Best cafe within 15 min walk",
                             i: <MapPin className="h-4 w-4" />,
                           },
                           {
-                            t: 'Sunset viewpoint + route',
+                            t: "Sunset viewpoint + route",
                             i: <Route className="h-4 w-4" />,
                           },
                           {
-                            t: 'Buy timed tickets now',
+                            t: "Buy timed tickets now",
                             i: <Clock className="h-4 w-4" />,
                           },
                         ].map((x) => (
@@ -747,46 +785,14 @@ export default function ResponsePlan({
                           </button>
                         ))}
                       </div>
-
-                      {rightNowContext ? (
-                        <div className="mt-4 rounded-[18px] border border-[#eadfcf] bg-white p-3 text-[12px] text-[#2f4954]">
-                          <div className="font-bold">Context</div>
-                          <pre className="mt-1 whitespace-pre-wrap break-words text-[#6a7b84]">
-                            {JSON.stringify(rightNowContext, null, 2)}
-                          </pre>
-                        </div>
-                      ) : null}
-
-                      <div className="mt-4 rounded-[18px] border border-[#eadfcf] bg-white p-3 text-[12px] text-[#2f4954]">
-                        <div className="font-bold">Latest Live AI Response</div>
-                        <div className="mt-1 text-[#6a7b84]">
-                          Updated: {formatTimestamp(lastLiveAt)}
-                        </div>
-                        {sourceLiveText.trim() ? (
-                          <div className="mt-2 max-h-[240px] overflow-auto pr-1">
-                            <LiveResponseRenderer
-                              text={sourceLiveText}
-                              compact
-                            />
-                          </div>
-                        ) : (
-                          <div className="mt-2 text-[#6a7b84]">
-                            No live travel response yet.
-                          </div>
-                        )}
-                      </div>
                     </div>
                   </div>
 
                   <div className="lg:col-span-5">
                     <div className="rounded-[22px] border border-[#e8dcc8] bg-white p-4">
                       <div className="text-[12px] font-bold text-[#2f4954]">
-                        AI Notes (Raw Sections)
+                        Raw AI Response
                       </div>
-                      <div className="mt-1 text-[12px] text-[#6a7b84]">
-                        Keep the original plan accessible.
-                      </div>
-
                       <div className="mt-4 space-y-2 max-h-[340px] overflow-auto pr-1">
                         {sections.map((s) => (
                           <details
