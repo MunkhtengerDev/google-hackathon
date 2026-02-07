@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Brain,
   Route,
@@ -15,6 +15,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { Card, SectionHeader } from "../../ui/primitives";
+import LiveResponseRenderer from "../ai/LiveResponseRenderer";
 
 function formatTimestamp(value) {
   if (!value) return "Not available";
@@ -184,7 +185,6 @@ export default function ResponsePlan({
   responseText = "",
   planResponseText = "",
   liveResponseText = "",
-  smartPlanCount = 5, // 3 / 5 / 7
   isLoading = false,
   loadError = "",
   lastPlanAt = "",
@@ -193,6 +193,8 @@ export default function ResponsePlan({
   rightNowContext,
 }) {
   const [active, setActive] = useState("smart");
+  const [selectedPlanId, setSelectedPlanId] = useState("");
+  const smartPlanCount = 3;
   const sourcePlanText = String(planResponseText || responseText || "");
   const sourceLiveText = String(liveResponseText || "");
 
@@ -206,7 +208,7 @@ export default function ResponsePlan({
 
   // "Smart plans": we generate options by slicing itinerary days into variants
   const smartPlans = useMemo(() => {
-    const count = [3, 5, 7].includes(smartPlanCount) ? smartPlanCount : 5;
+    const count = smartPlanCount;
     const base = days.length
       ? days
       : [{ day: 1, text: "No itinerary parsed yet." }];
@@ -230,6 +232,21 @@ export default function ResponsePlan({
     }
     return variants;
   }, [days, smartPlanCount]);
+
+  useEffect(() => {
+    if (!smartPlans.length) {
+      setSelectedPlanId("");
+      return;
+    }
+    if (!smartPlans.some((plan) => plan.id === selectedPlanId)) {
+      setSelectedPlanId(smartPlans[0].id);
+    }
+  }, [smartPlans, selectedPlanId]);
+
+  const selectedPlan =
+    smartPlans.find((plan) => plan.id === selectedPlanId) ||
+    smartPlans[0] ||
+    null;
 
   const canShow = Boolean(sourcePlanText.trim());
 
@@ -299,7 +316,9 @@ export default function ResponsePlan({
           </div>
           <div className="mt-3 rounded-2xl border border-[#eadfcf] bg-[#fffaf1] px-3 py-2 text-[11px] text-[#5d727c]">
             <div>Plan updated: {formatTimestamp(lastPlanAt)}</div>
-            <div className="mt-1">Live updated: {formatTimestamp(lastLiveAt)}</div>
+            <div className="mt-1">
+              Live updated: {formatTimestamp(lastLiveAt)}
+            </div>
           </div>
         </Card>
       </aside>
@@ -376,27 +395,10 @@ export default function ResponsePlan({
                 <SectionHeader
                   icon={<Brain className="h-5 w-5" />}
                   title="Smart Plans"
-                  subtitle={`Generated options (${smartPlanCount}) you can pick and refine.`}
+                  subtitle="Generated options (3) you can pick and refine."
                   right={
-                    <div className="flex items-center gap-2">
-                      <span className="text-[12px] font-semibold text-[#6a7b84]">
-                        Options:
-                      </span>
-                      <select
-                        value={smartPlanCount}
-                        onChange={(e) => {
-                          // parent controls recommended; local fallback:
-                          // eslint-disable-next-line no-alert
-                          alert(
-                            "Tip: control smartPlanCount from parent. This is UI-only."
-                          );
-                        }}
-                        className="rounded-full border border-[var(--line)] bg-white px-3 py-1.5 text-xs font-semibold text-[#2f4954]"
-                      >
-                        <option value={3}>3</option>
-                        <option value={5}>5</option>
-                        <option value={7}>7</option>
-                      </select>
+                    <div className="rounded-full border border-[var(--line)] bg-white px-3 py-1.5 text-xs font-semibold text-[#2f4954]">
+                      Options: 3
                     </div>
                   }
                 />
@@ -405,7 +407,12 @@ export default function ResponsePlan({
                   {smartPlans.map((plan) => (
                     <div
                       key={plan.id}
-                      className="rounded-[18px] border border-[#e8dcc8] bg-[#fffaf1] p-4"
+                      className={[
+                        "rounded-[18px] border bg-[#fffaf1] p-4 transition",
+                        selectedPlan?.id === plan.id
+                          ? "border-[#0d6a66] shadow-[0_12px_26px_rgba(12,95,92,0.16)]"
+                          : "border-[#e8dcc8]",
+                      ].join(" ")}
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div>
@@ -418,9 +425,18 @@ export default function ResponsePlan({
                         </div>
                         <button
                           type="button"
-                          className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-[#0d6a66] to-[#084744] px-3.5 py-2 text-xs font-semibold text-white shadow-[0_12px_26px_rgba(12,95,92,0.22)] transition hover:brightness-105"
+                          onClick={() => {
+                            setSelectedPlanId(plan.id);
+                            setActive("route");
+                          }}
+                          className={[
+                            "inline-flex items-center gap-2 rounded-full px-3.5 py-2 text-xs font-semibold transition",
+                            selectedPlan?.id === plan.id
+                              ? "bg-gradient-to-r from-[#0d6a66] to-[#084744] text-white shadow-[0_12px_26px_rgba(12,95,92,0.22)]"
+                              : "border border-[var(--line)] bg-white text-[#2f4954] hover:border-[var(--line-strong)] hover:bg-[#fff8eb]",
+                          ].join(" ")}
                         >
-                          Select
+                          {selectedPlan?.id === plan.id ? "Selected" : "Select"}
                           <ChevronRight className="h-3.5 w-3.5" />
                         </button>
                       </div>
@@ -457,11 +473,15 @@ export default function ResponsePlan({
                 <SectionHeader
                   icon={<Route className="h-5 w-5" />}
                   title="Live Route"
-                  subtitle="Map + time logic (plug your Google Maps component here)."
+                  subtitle={
+                    selectedPlan
+                      ? `Showing ${selectedPlan.name} • ${selectedPlan.highlight}`
+                      : "Select a smart plan to populate this route."
+                  }
                   right={
                     <div className="flex items-center gap-2 rounded-full border border-[#e8dcc8] bg-[#fffaf1] px-3 py-1.5 text-[11px] font-bold text-[#6a4a12]">
                       <Search className="h-3.5 w-3.5" />
-                      Route builder
+                      {selectedPlan ? selectedPlan.name : "Route builder"}
                     </div>
                   }
                 />
@@ -490,14 +510,13 @@ export default function ResponsePlan({
                         Route Timeline
                       </div>
                       <div className="mt-1 text-[12px] text-[#6a7b84]">
-                        Pull stops from itinerary sections (museums, hotels,
-                        etc.)
+                        Uses the selected smart plan as the active route.
                       </div>
 
                       <div className="mt-4 space-y-2">
-                        {days.slice(0, 8).map((d) => (
+                        {(selectedPlan?.items || []).slice(0, 8).map((d) => (
                           <div
-                            key={`route_${d.day}`}
+                            key={`route_${selectedPlan?.id || "none"}_${d.day}`}
                             className="flex items-start gap-3 rounded-2xl border border-[#ece2d4] bg-[#fffaf1] px-3 py-2"
                           >
                             <div className="rounded-full bg-white px-2 py-0.5 text-[11px] font-bold text-[#2f4954]">
@@ -508,10 +527,10 @@ export default function ResponsePlan({
                             </div>
                           </div>
                         ))}
-                        {!days.length ? (
+                        {!selectedPlan?.items?.length ? (
                           <div className="text-[12px] text-[#6a7b84]">
-                            No “Day X” items found yet. Still fine—map can also
-                            run from user-selected places.
+                            Select one of the 3 smart options to build route
+                            timeline.
                           </div>
                         ) : null}
                       </div>
@@ -739,9 +758,12 @@ export default function ResponsePlan({
                           Updated: {formatTimestamp(lastLiveAt)}
                         </div>
                         {sourceLiveText.trim() ? (
-                          <pre className="mt-2 max-h-[180px] overflow-auto whitespace-pre-wrap break-words text-[12px] leading-relaxed text-[#2f4954]">
-                            {sourceLiveText}
-                          </pre>
+                          <div className="mt-2 max-h-[240px] overflow-auto pr-1">
+                            <LiveResponseRenderer
+                              text={sourceLiveText}
+                              compact
+                            />
+                          </div>
                         ) : (
                           <div className="mt-2 text-[#6a7b84]">
                             No live travel response yet.

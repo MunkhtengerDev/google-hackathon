@@ -2,15 +2,17 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft,
   Camera,
+  ImagePlus,
+  Loader2,
   MapPin,
   MessageSquareText,
   Route,
   Send,
   Square,
   UploadCloud,
-  Loader2,
 } from "lucide-react";
 import { Card, ControlShell, SectionHeader } from "../../ui/primitives";
+import LiveResponseRenderer from "./LiveResponseRenderer";
 
 const API_BASE_URL = (
   import.meta.env.VITE_API_BASE_URL || "http://localhost:9008"
@@ -454,6 +456,7 @@ export default function AIImageRequestPage({
                     <Route className="h-3.5 w-3.5" />
                     Trip Response
                   </button>
+
                   <button
                     type="button"
                     onClick={onBackToPlanner}
@@ -636,9 +639,9 @@ export default function AIImageRequestPage({
 
             <div className="min-h-[460px] rounded-[20px] border border-[var(--line)] bg-[var(--surface-soft)] p-4 sm:p-5">
               {resultText ? (
-                <pre className="max-h-[560px] overflow-y-auto whitespace-pre-wrap break-words pr-1 text-[13px] leading-relaxed text-[#243944]">
-                  {resultText}
-                </pre>
+                <div className="max-h-[560px] overflow-y-auto pr-1">
+                  <LiveResponseRenderer text={resultText} />
+                </div>
               ) : (
                 <div className="flex min-h-[420px] items-center justify-center text-center text-[13px] text-[#6a7b84]">
                   {isSending
