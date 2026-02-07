@@ -8,13 +8,13 @@ export default function TransitionScreen({ title = "Got it.", subtitle, onDone, 
   }, [onDone, ms]);
 
   return (
-    <Card className="flex items-center justify-between gap-6">
+    <Card className="flex items-center justify-between gap-6 bg-gradient-to-br from-[#fffdf9] via-[#fff8eb] to-[#f2e6cf]">
       <div>
-        <div className="text-[22px] font-semibold tracking-[-0.02em] text-slate-900">{title}</div>
-        {subtitle ? <div className="mt-1 text-[14px] text-slate-600">{subtitle}</div> : null}
+        <div className="font-display text-[36px] leading-[0.95] text-[var(--ink)]">{title}</div>
+        {subtitle ? <div className="mt-1 text-[14px] text-[var(--ink-soft)]">{subtitle}</div> : null}
       </div>
-      <div className="h-10 w-10 rounded-full bg-slate-900/5 flex items-center justify-center">
-        <div className="h-2 w-2 rounded-full bg-slate-900 animate-pulse" />
+      <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[#0c5f5c12]">
+        <div className="h-2.5 w-2.5 rounded-full bg-[#0c5f5c] animate-pulse" />
       </div>
     </Card>
   );

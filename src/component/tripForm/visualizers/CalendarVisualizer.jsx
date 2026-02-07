@@ -29,17 +29,17 @@ export default function CalendarVisualizer({ startDate, endDate, title = "Trip",
   }, [startDate, endDate, title, details, location]);
 
   return (
-    <div className="h-full w-full flex flex-col bg-white rounded-2xl overflow-hidden border border-slate-200 shadow-[0_16px_40px_rgba(15,23,42,0.08)]">
-      <div className="bg-slate-50 p-4 border-b border-slate-200">
+    <div className="flex h-full w-full flex-col overflow-hidden rounded-2xl border border-[#dfd3bf] bg-white shadow-[0_16px_40px_rgba(15,23,42,0.08)]">
+      <div className="border-b border-[#e4d8c4] bg-[#f9f2e5] p-4">
         <div className="flex items-center gap-2">
-          <CalendarIcon className="w-4 h-4 text-slate-500" />
-          <span className="text-[12px] font-bold uppercase text-slate-500 tracking-wider">
+          <CalendarIcon className="h-4 w-4 text-[#5c6f78]" />
+          <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#5c6f78]">
             Google Calendar
           </span>
         </div>
 
-        <div className="mt-2 text-[16px] font-semibold text-slate-900">
-          {startDate || "Select start"} <span className="text-slate-300 mx-2">→</span>{" "}
+        <div className="mt-2 text-[16px] font-semibold text-[var(--ink)]">
+          {startDate || "Select start"} <span className="mx-2 text-[#bba88f]">→</span>{" "}
           {endDate || "Select end"}
         </div>
 
@@ -48,7 +48,7 @@ export default function CalendarVisualizer({ startDate, endDate, title = "Trip",
             href={link}
             target="_blank"
             rel="noreferrer"
-            className="mt-3 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-900 text-white text-[13px] font-medium"
+            className="mt-3 inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-[#0c5f5c] to-[#0a4d4a] px-4 py-2 text-[13px] font-semibold text-white shadow-[0_10px_22px_rgba(12,95,92,0.24)]"
           >
             Add to Google Calendar <ExternalLink className="w-4 h-4" />
           </a>
@@ -56,11 +56,26 @@ export default function CalendarVisualizer({ startDate, endDate, title = "Trip",
       </div>
 
       <div className="flex-1 p-6">
-        <div className="rounded-2xl border border-slate-200 bg-white p-5">
-          <div className="text-[13px] font-semibold text-slate-900">Deep note</div>
-          <div className="mt-1 text-[13px] text-slate-600">
+        <div className="rounded-2xl border border-[#dfd3bf] bg-[#fff8eb] p-5">
+          <div className="text-[13px] font-semibold text-[#2b4652]">Deep note</div>
+          <div className="mt-1 text-[13px] text-[#51656f]">
             This method is intentionally robust: it works for every user without OAuth.
             If you want direct calendar insertion with permissions, add Google OAuth later.
+          </div>
+        </div>
+
+        <div className="mt-4 rounded-2xl border border-[#dfd3bf] bg-white p-4">
+          <div className="text-[11px] font-bold uppercase tracking-[0.1em] text-[#60727b]">
+            Date snapshot
+          </div>
+          <div className="mt-2 flex items-center gap-2 text-[13px] text-[#425863]">
+            <span className="rounded-full bg-[#ecf7f4] px-3 py-1 font-semibold text-[#0d6a66]">
+              {startDate || "Start TBD"}
+            </span>
+            <span>to</span>
+            <span className="rounded-full bg-[#fff1dc] px-3 py-1 font-semibold text-[#956233]">
+              {endDate || "End TBD"}
+            </span>
           </div>
         </div>
       </div>

@@ -1,37 +1,48 @@
 import React, { useEffect, useMemo, useState } from "react";
+import { ArrowLeft, ArrowRight } from "lucide-react";
 import PlannerShell from "../../ui/PlannerShell.jsx";
 import TransitionScreen from "../../ui/TransitionScreen.jsx";
 import { loadFromStorage, saveToStorage, clearStorage } from "../../lib/storage.js";
 
-// Sections
 import TripStatusSection from "./sections/TripStatusSection.jsx";
 import HomeContextSection from "./sections/HomeContextSection.jsx";
 import DestinationSection from "./sections/DestinationSection.jsx";
 import SeasonSection from "./sections/SeasonSection.jsx";
 import BudgetSection from "./sections/BudgetSection.jsx";
 
-// Visualizers
 import MapVisualizer from "./visualizers/MapVisualizer.jsx";
 import CalendarVisualizer from "./visualizers/CalendarVisualizer.jsx";
 import SummaryVisualizer from "./visualizers/SummaryVisualizer.jsx";
 
+const API_BASE_URL = (
+  import.meta.env.VITE_API_BASE_URL || "http://localhost:9008"
+).replace(/\/$/, "");
+
+const ALLOWED_INTERESTS = new Set([
+  "history",
+  "food",
+  "nature",
+  "art",
+  "adventure",
+  "relaxation",
+  "nightlife",
+  "shopping",
+]);
+
 function defaultState() {
   return {
-    tripStatus: "planning",
-
+    tripStatus: "",
     context: {
       homeCountry: "",
       departureCity: "",
       currency: "USD",
     },
-
     destination: {
       countries: [],
       cities: [],
       regions: [],
       flexibility: "fixed",
     },
-
     dates: {
       start: "",
       end: "",
@@ -39,7 +50,6 @@ function defaultState() {
       timingPriority: [],
       seasonPref: "no_preference",
     },
-
     budget: {
       currency: "USD",
       usdBudget: 0,
@@ -50,11 +60,36 @@ function defaultState() {
 }
 
 const STEPS = [
-  { key: "status", title: "Let’s start.", visual: "summary" },
-  { key: "context", title: "Home & Context", visual: "map" },
-  { key: "destination", title: "Destination", visual: "map" },
-  { key: "season", title: "Timing", visual: "calendar" },
-  { key: "budget", title: "Budget", visual: "summary" },
+  {
+    key: "status",
+    title: "Define Your Journey Type",
+    subtitle: "Choose planning mode to tailor recommendations and pacing.",
+    visual: "summary",
+  },
+  {
+    key: "context",
+    title: "Set Your Home Context",
+    subtitle: "Departure location and currency shape the route strategy.",
+    visual: "map",
+  },
+  {
+    key: "destination",
+    title: "Shape The Destination Map",
+    subtitle: "Add multiple countries, cities, or regions for route planning.",
+    visual: "map",
+  },
+  {
+    key: "season",
+    title: "Tune Timing & Seasonality",
+    subtitle: "Balance weather, crowds, and value windows for better timing.",
+    visual: "calendar",
+  },
+  {
+    key: "budget",
+    title: "Engineer The Budget",
+    subtitle: "Set cost priorities so the plan fits your travel style.",
+    visual: "summary",
+  },
 ];
 
 function mergeSafe(base, loaded) {
@@ -69,42 +104,127 @@ function mergeSafe(base, loaded) {
   };
 }
 
-// “deep” next-step gating: we show a small transition screen if step is completed
 function isStepComplete(stepKey, data) {
-  if (stepKey === "status") return !!data.tripStatus;
-  if (stepKey === "context") return !!(data.context.homeCountry || data.context.departureCity);
-  if (stepKey === "destination") return (data.destination.countries?.length || data.destination.cities?.length || data.destination.regions?.length) > 0;
-  if (stepKey === "season") return !!data.dates.start;
-  if (stepKey === "budget") return Number(data.budget.usdBudget || 0) > 0;
+  if (stepKey === "status") {
+    return Boolean(data.tripStatus);
+  }
+
+  if (stepKey === "context") {
+    return Boolean(data.context.homeCountry?.trim()) &&
+      Boolean(data.context.departureCity?.trim());
+  }
+
+  if (stepKey === "destination") {
+    return (
+      (data.destination.countries?.length || 0) +
+        (data.destination.cities?.length || 0) +
+        (data.destination.regions?.length || 0) >
+      0
+    );
+  }
+
+  if (stepKey === "season") {
+    if (data.tripStatus === "booked") {
+      return Boolean(data.dates.start) && Boolean(data.dates.end);
+    }
+    return Boolean(data.dates.start);
+  }
+
+  if (stepKey === "budget") {
+    return (
+      Number(data.budget.usdBudget || 0) > 0 &&
+      Boolean(data.budget.currency?.trim())
+    );
+  }
+
   return true;
 }
 
-export default function TripOnboarding() {
+function mapBudgetLevel(usdBudget) {
+  const total = Number(usdBudget || 0);
+  if (total <= 1500) return "budget";
+  if (total <= 4000) return "mid-range";
+  return "luxury";
+}
+
+function mapTravelStyle(data) {
+  const stopCount =
+    (data.destination.countries?.length || 0) +
+    (data.destination.cities?.length || 0) +
+    (data.destination.regions?.length || 0);
+
+  if (stopCount >= 4) return "group";
+  if (data.tripStatus === "booked") return "couple";
+  return "solo";
+}
+
+function mapInterests(data) {
+  const priorityMap = {
+    weather: "nature",
+    crowds: "relaxation",
+    price: "shopping",
+  };
+
+  const interests = (data.dates.timingPriority || [])
+    .map((item) => priorityMap[item])
+    .filter(Boolean);
+
+  if (data.tripStatus === "booked") interests.push("adventure");
+  if (Number(data.budget.usdBudget || 0) >= 3500) interests.push("art");
+
+  const unique = Array.from(new Set(interests)).filter((item) =>
+    ALLOWED_INTERESTS.has(item)
+  );
+
+  return unique.length ? unique : ["nature"];
+}
+
+function mapMobilityPreference(data) {
+  const destinationSpread =
+    (data.destination.cities?.length || 0) + (data.destination.regions?.length || 0);
+
+  if (destinationSpread >= 2) return "transport";
+  return "walking";
+}
+
+function buildPreferencesPayload(data) {
+  return {
+    travelStyle: mapTravelStyle(data),
+    budgetLevel: mapBudgetLevel(data.budget.usdBudget),
+    interests: mapInterests(data),
+    mobilityPreference: mapMobilityPreference(data),
+    foodPreferences: ["no-restrictions"],
+  };
+}
+
+export default function TripOnboarding({ token }) {
   const mapsApiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 
-  const [data, setData] = useState(defaultState());
+  const [data, setData] = useState(() =>
+    mergeSafe(defaultState(), loadFromStorage())
+  );
   const [step, setStep] = useState(0);
-
-  // right side “live query”
   const [rightQuery, setRightQuery] = useState("");
-
-  // transition screen
   const [showTransition, setShowTransition] = useState(false);
-
-  useEffect(() => {
-    const loaded = loadFromStorage();
-    setData((d) => mergeSafe(d, loaded));
-  }, []);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
+  const [saveSuccess, setSaveSuccess] = useState("");
 
   useEffect(() => {
     saveToStorage(data);
   }, [data]);
 
   const stepConfig = STEPS[step];
+  const isLastStep = step === STEPS.length - 1;
+  const canContinue = isStepComplete(stepConfig.key, data);
 
   const defaultMapQuery = useMemo(() => {
     if (stepConfig.key === "context") {
-      return [data.context.departureCity, data.context.homeCountry].filter(Boolean).join(", ") || "World";
+      return (
+        [data.context.departureCity, data.context.homeCountry]
+          .filter(Boolean)
+          .join(", ") || "World"
+      );
     }
     if (stepConfig.key === "destination") {
       const last =
@@ -122,7 +242,6 @@ export default function TripOnboarding() {
       ...(data.destination.cities || []),
       ...(data.destination.regions || []),
     ];
-    // dedupe
     return Array.from(new Set(list)).slice(0, 12);
   }, [data.destination]);
 
@@ -144,7 +263,9 @@ export default function TripOnboarding() {
         data.destination.cities?.[0] ||
         data.destination.countries?.[0] ||
         data.destination.regions?.[0] ||
-        [data.context.departureCity, data.context.homeCountry].filter(Boolean).join(", ");
+        [data.context.departureCity, data.context.homeCountry]
+          .filter(Boolean)
+          .join(", ");
 
       return (
         <CalendarVisualizer
@@ -158,7 +279,15 @@ export default function TripOnboarding() {
     }
 
     return <SummaryVisualizer data={data} />;
-  }, [stepConfig.visual, stepConfig.key, rightQuery, defaultMapQuery, mapsApiKey, markers, data]);
+  }, [
+    stepConfig.visual,
+    stepConfig.key,
+    rightQuery,
+    defaultMapQuery,
+    mapsApiKey,
+    markers,
+    data,
+  ]);
 
   const resetAll = () => {
     clearStorage();
@@ -166,21 +295,55 @@ export default function TripOnboarding() {
     setStep(0);
     setRightQuery("");
     setShowTransition(false);
+    setSaveError("");
+    setSaveSuccess("");
   };
 
-  const goNext = () => {
-    const key = stepConfig.key;
-    const complete = isStepComplete(key, data);
-
-    // show micro-transition if user actually completed this step
-    if (complete) {
-      setShowTransition(true);
+  const saveTravelPreferences = async () => {
+    if (!token) {
+      setSaveError("Authentication is missing. Please sign in again.");
       return;
     }
 
-    // if not complete, still allow next (optional). If you want hard-lock, return here.
-    setStep((s) => Math.min(STEPS.length - 1, s + 1));
-    setRightQuery("");
+    setIsSaving(true);
+    setSaveError("");
+    setSaveSuccess("");
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/v1/preferences`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(buildPreferencesPayload(data)),
+      });
+
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(payload?.message || "Failed to save preferences");
+      }
+
+      setSaveSuccess("Travel preferences saved to backend.");
+      setShowTransition(true);
+    } catch (error) {
+      setSaveError(error.message || "Unable to save preferences");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const goNext = async () => {
+    if (!canContinue || isSaving) return;
+
+    setSaveError("");
+
+    if (isLastStep) {
+      await saveTravelPreferences();
+      return;
+    }
+
+    setShowTransition(true);
   };
 
   const finishTransition = () => {
@@ -190,6 +353,8 @@ export default function TripOnboarding() {
   };
 
   const goBack = () => {
+    if (isSaving) return;
+    setSaveError("");
     setStep((s) => Math.max(0, s - 1));
     setRightQuery("");
   };
@@ -199,13 +364,18 @@ export default function TripOnboarding() {
       stepIndex={step}
       stepsCount={STEPS.length}
       title={stepConfig.title}
+      subtitle={stepConfig.subtitle}
       rightContent={rightContent}
       onReset={resetAll}
     >
       {showTransition ? (
         <TransitionScreen
-          title="Nice."
-          subtitle="Moving to the next step…"
+          title={isLastStep ? "Saved." : "Nice."}
+          subtitle={
+            isLastStep
+              ? "Travel preferences synced with backend."
+              : "Moving to the next step."
+          }
           onDone={finishTransition}
         />
       ) : (
@@ -254,17 +424,60 @@ export default function TripOnboarding() {
           <div className="mt-8 flex items-center justify-between gap-3">
             <button
               onClick={goBack}
-              className="px-4 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-[13px] font-semibold"
+              disabled={step === 0 || isSaving}
+              className={[
+                "inline-flex items-center gap-2 rounded-full border px-4 py-2 text-[13px] font-semibold transition",
+                step === 0 || isSaving
+                  ? "cursor-not-allowed border-[#dcd1bf] bg-[#f6f1e8] text-[#9aa8ae]"
+                  : "border-[var(--line)] bg-[var(--surface)] text-[#385360] hover:border-[var(--line-strong)] hover:bg-[#fff8eb]",
+              ].join(" ")}
             >
+              <ArrowLeft className="h-3.5 w-3.5" />
               Back
             </button>
+
+            <div className="hidden items-center gap-1.5 md:flex">
+              {STEPS.map((item, idx) => (
+                <span
+                  key={item.key}
+                  className={[
+                    "h-1.5 rounded-full transition-all",
+                    idx <= step ? "w-7 bg-[#0d6a66]" : "w-3 bg-[#d9ccb8]",
+                  ].join(" ")}
+                />
+              ))}
+            </div>
+
             <button
               onClick={goNext}
-              className="px-5 py-2.5 rounded-xl bg-slate-900 text-white hover:bg-slate-800 text-[13px] font-semibold shadow-sm"
+              disabled={!canContinue || isSaving}
+              className={[
+                "inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-[13px] font-semibold transition",
+                !canContinue || isSaving
+                  ? "cursor-not-allowed bg-[#ccd6d9] text-white"
+                  : "bg-gradient-to-r from-[#0d6a66] to-[#084744] text-white shadow-[0_10px_24px_rgba(12,95,92,0.30)] hover:brightness-105",
+              ].join(" ")}
             >
-              Continue
+              {isLastStep ? (isSaving ? "Saving..." : "Save Preferences") : "Continue"}
+              <ArrowRight className="h-3.5 w-3.5" />
             </button>
           </div>
+
+          {!canContinue ? (
+            <p className="mt-3 text-xs font-medium text-[#9a5c32]">
+              Fill required fields in this step to continue.
+            </p>
+          ) : null}
+
+          {saveError ? (
+            <p className="mt-3 text-xs font-medium text-[#8b3f2e]">{saveError}</p>
+          ) : null}
+
+          {saveSuccess && !showTransition ? (
+            <p className="mt-3 text-xs font-medium text-[#245f52]">
+              {saveSuccess}
+            </p>
+          ) : null}
         </>
       )}
     </PlannerShell>

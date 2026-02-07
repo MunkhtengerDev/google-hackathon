@@ -98,7 +98,7 @@ export default function HomeContextSection({ value, onChange, mapsApiKey, onFocu
       <div className="mb-6 flex justify-end">
         <button
           onClick={detectLocation}
-          className="flex items-center gap-2 text-xs font-semibold text-indigo-600 bg-indigo-50 px-3 py-2 rounded-full hover:bg-indigo-100 transition-colors"
+          className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-[#0d6a66] to-[#084744] px-3.5 py-2 text-xs font-semibold text-white shadow-[0_8px_20px_rgba(12,95,92,0.24)] transition hover:brightness-105"
         >
           {loading ? <Loader2 className="w-3 h-3 animate-spin" /> : <MapPin className="w-3 h-3" />}
           Detect my location
@@ -115,7 +115,7 @@ export default function HomeContextSection({ value, onChange, mapsApiKey, onFocu
                 onChange(v);
                 onFocusQuery?.(e.target.value);
               }}
-              className="w-full bg-transparent outline-none"
+              className="w-full bg-transparent text-[14px] text-[var(--ink)] outline-none placeholder:text-[#809097]"
               placeholder="e.g. Mongolia"
             />
           </ControlShell>
@@ -130,7 +130,7 @@ export default function HomeContextSection({ value, onChange, mapsApiKey, onFocu
                 onChange(v);
                 onFocusQuery?.(e.target.value);
               }}
-              className="w-full bg-transparent outline-none"
+              className="w-full bg-transparent text-[14px] text-[var(--ink)] outline-none placeholder:text-[#809097]"
               placeholder="e.g. Ulaanbaatar"
             />
           </ControlShell>
@@ -141,11 +141,21 @@ export default function HomeContextSection({ value, onChange, mapsApiKey, onFocu
             <input
               value={value.currency || "USD"}
               onChange={(e) => onChange({ ...value, currency: e.target.value })}
-              className="w-full bg-transparent outline-none"
+              className="w-full bg-transparent text-[14px] text-[var(--ink)] outline-none placeholder:text-[#809097]"
               placeholder="USD"
             />
           </ControlShell>
         </Field>
+      </div>
+
+      <div className="mt-5 rounded-[18px] border border-[#d9ccb7] bg-[#fff7e9] p-4">
+        <div className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#60727b]">
+          Why this matters
+        </div>
+        <p className="mt-1 text-[13px] text-[#556871]">
+          We use home context to estimate flight ranges, compare value windows,
+          and optimize realistic routes.
+        </p>
       </div>
     </Card>
   );

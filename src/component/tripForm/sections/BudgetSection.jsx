@@ -27,7 +27,7 @@ export default function BudgetSection({ tripStatus, value, onChange }) {
                 type="number"
                 value={value.usdBudget || ""}
                 onChange={(e) => onChange({ ...value, usdBudget: Number(e.target.value) })}
-                className="w-full bg-transparent outline-none font-semibold text-slate-900"
+                className="w-full bg-transparent font-semibold text-slate-900 outline-none placeholder:text-[#83939b]"
                 placeholder="2000"
               />
             </div>
@@ -39,7 +39,7 @@ export default function BudgetSection({ tripStatus, value, onChange }) {
             <input
               value={value.currency || "USD"}
               onChange={(e) => onChange({ ...value, currency: e.target.value })}
-              className="w-full bg-transparent outline-none"
+              className="w-full bg-transparent outline-none placeholder:text-[#83939b]"
               placeholder="USD"
             />
           </ControlShell>
@@ -47,7 +47,7 @@ export default function BudgetSection({ tripStatus, value, onChange }) {
       </div>
 
       <div className="mb-4">
-        <div className="text-sm font-semibold mb-2">Budget Priority</div>
+        <div className="mb-2 text-sm font-semibold">Budget Priority</div>
         <div className="flex flex-wrap gap-2">
           {PRIORITIES.map((p) => (
             <PillButton
@@ -62,7 +62,7 @@ export default function BudgetSection({ tripStatus, value, onChange }) {
       </div>
 
       {tripStatus === "booked" ? (
-        <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
+        <div className="rounded-[16px] border border-[#ddd0bc] bg-[#fff7e9] p-4">
           <div className="text-sm font-semibold mb-2">Spending style</div>
           <div className="flex flex-col sm:flex-row gap-3 text-sm">
             <label className="flex items-center gap-2">
@@ -71,6 +71,7 @@ export default function BudgetSection({ tripStatus, value, onChange }) {
                 name="style"
                 checked={value.spendingStyle === "track"}
                 onChange={() => onChange({ ...value, spendingStyle: "track" })}
+                className="accent-[#0c5f5c]"
               />
               Track every cost
             </label>
@@ -81,12 +82,23 @@ export default function BudgetSection({ tripStatus, value, onChange }) {
                 name="style"
                 checked={value.spendingStyle === "relaxed"}
                 onChange={() => onChange({ ...value, spendingStyle: "relaxed" })}
+                className="accent-[#0c5f5c]"
               />
               Relaxed
             </label>
           </div>
         </div>
       ) : null}
+
+      <div className="mt-5 rounded-[18px] border border-[#d9ccb7] bg-[#fff7e9] p-4">
+        <div className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#60727b]">
+          Budget insight
+        </div>
+        <p className="mt-1 text-[13px] text-[#556871]">
+          Choosing a priority helps the planner decide where to save and where
+          to spend for maximum trip quality.
+        </p>
+      </div>
     </Card>
   );
 }

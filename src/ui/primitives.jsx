@@ -5,25 +5,28 @@ export function Card({ children, className = "" }) {
   return (
     <section
       className={[
+        "motion-rise",
+        "relative overflow-hidden",
         ui.surface.card,
         ui.radius.card,
         ui.border.hairline,
         ui.shadow.card,
-        "p-5 sm:p-7",
+        "p-5 sm:p-7 backdrop-blur-[2px]",
         className,
       ].join(" ")}
     >
-      {children}
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-white/75 to-transparent" />
+      <div className="relative">{children}</div>
     </section>
   );
 }
 
 export function SectionHeader({ icon, title, subtitle, right }) {
   return (
-    <div className="flex items-start justify-between gap-4 mb-6">
+    <div className="mb-6 flex items-start justify-between gap-4">
       <div className="min-w-0">
         <div className="flex items-center gap-3">
-          <div className="h-11 w-11 rounded-[16px] bg-slate-900 text-white flex items-center justify-center shadow-sm">
+          <div className="flex h-11 w-11 items-center justify-center rounded-[16px] bg-gradient-to-br from-[#0d6a66] via-[#0c5f5c] to-[#084744] text-white shadow-[0_12px_24px_rgba(12,95,92,0.32)]">
             {icon}
           </div>
           <h2 className={ui.text.title}>{title}</h2>
@@ -57,7 +60,7 @@ export function ControlShell({ focused, children, className = "" }) {
         ui.radius.control,
         ui.border.hairline,
         ui.surface.tint,
-        "px-4 py-3 transition-all",
+        "px-4 py-3 transition-all duration-200",
         focused ? ui.border.focus : "",
         className,
       ].join(" ")}
@@ -74,10 +77,10 @@ export function PillButton({ active, children, onClick, className = "", type = "
       onClick={onClick}
       className={[
         ui.radius.pill,
-        "px-4 py-2 text-[13px] font-medium transition-all select-none",
+        "px-4 py-2 text-[13px] font-semibold transition-all duration-200 select-none hover:-translate-y-[1px]",
         active
-          ? "bg-slate-900 text-white shadow-sm"
-          : "bg-white border border-slate-200/80 text-slate-700 hover:border-slate-300",
+          ? "bg-gradient-to-r from-[#0d6a66] to-[#084744] text-white shadow-[0_10px_20px_rgba(12,95,92,0.30)]"
+          : "border border-[var(--line)] bg-white text-[#31454f] hover:border-[var(--line-strong)] hover:bg-[#fff9ef]",
         className,
       ].join(" ")}
     >
@@ -92,12 +95,12 @@ export function OptionCard({ active, onClick, title, description, icon, meta }) 
       type="button"
       onClick={onClick}
       className={[
-        "text-left w-full",
+        "group w-full text-left",
         "p-5 sm:p-6",
-        "rounded-[20px] border transition-all",
+        "rounded-[22px] border transition-all duration-200",
         active
-          ? "border-slate-900 bg-slate-900 text-white shadow-[0_16px_36px_rgba(15,23,42,0.20)]"
-          : "border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm",
+          ? "border-transparent bg-gradient-to-br from-[#0f706c] via-[#0b5a58] to-[#084744] text-white shadow-[0_20px_40px_rgba(12,95,92,0.32)]"
+          : "border-[var(--line)] bg-[#fffdf9] hover:-translate-y-0.5 hover:border-[var(--line-strong)] hover:bg-white hover:shadow-[0_16px_34px_rgba(15,23,42,0.11)]",
       ].join(" ")}
     >
       <div className="flex items-start justify-between gap-4">
@@ -105,7 +108,7 @@ export function OptionCard({ active, onClick, title, description, icon, meta }) 
           <div
             className={[
               "h-12 w-12 rounded-[16px] flex items-center justify-center",
-              active ? "bg-white/10" : "bg-slate-100",
+              active ? "bg-white/14" : "bg-[#f8efdc] text-[#35505a] group-hover:bg-[#f5e6ca]",
             ].join(" ")}
           >
             {icon}
@@ -114,20 +117,25 @@ export function OptionCard({ active, onClick, title, description, icon, meta }) 
             <div
               className={[
                 "text-[16px] font-semibold tracking-[-0.01em]",
-                active ? "text-white" : "text-slate-900",
+                active ? "text-white" : "text-[var(--ink)]",
               ].join(" ")}
             >
               {title}
             </div>
             {description ? (
-              <div className={["mt-1 text-[13px] leading-relaxed", active ? "text-white/80" : "text-slate-600"].join(" ")}>
+              <div
+                className={[
+                  "mt-1 text-[13px] leading-relaxed",
+                  active ? "text-white/85" : "text-[var(--ink-soft)]",
+                ].join(" ")}
+              >
                 {description}
               </div>
             ) : null}
           </div>
         </div>
         {meta ? (
-          <div className={["text-[12px] font-medium", active ? "text-white/80" : "text-slate-500"].join(" ")}>
+          <div className={["text-[12px] font-semibold", active ? "text-white/85" : "text-[#60717a]"].join(" ")}>
             {meta}
           </div>
         ) : null}

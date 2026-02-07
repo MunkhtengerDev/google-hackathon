@@ -27,7 +27,7 @@ export default function SeasonSection({ tripStatus, value, onChange }) {
               value={value.start || ""}
               onChange={(e) => onChange({ ...value, start: e.target.value })}
               placeholder={isPlanning ? "e.g. June 2026" : ""}
-              className="w-full bg-transparent outline-none text-sm text-slate-900"
+              className="w-full bg-transparent outline-none text-sm text-slate-900 placeholder:text-[#82939b]"
             />
           </ControlShell>
         </Field>
@@ -39,7 +39,7 @@ export default function SeasonSection({ tripStatus, value, onChange }) {
               value={value.end || ""}
               onChange={(e) => onChange({ ...value, end: e.target.value })}
               placeholder={isPlanning ? "e.g. August 2026" : ""}
-              className="w-full bg-transparent outline-none text-sm text-slate-900"
+              className="w-full bg-transparent outline-none text-sm text-slate-900 placeholder:text-[#82939b]"
             />
           </ControlShell>
         </Field>
@@ -55,9 +55,9 @@ export default function SeasonSection({ tripStatus, value, onChange }) {
                 max="30"
                 value={Number(value.durationDays || 7)}
                 onChange={(e) => onChange({ ...value, durationDays: Number(e.target.value) })}
-                className="w-full accent-slate-900 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer"
+                className="h-2 w-full cursor-pointer appearance-none rounded-lg bg-[#e3d8c4] accent-[#0c5f5c]"
               />
-              <div className="text-right text-sm font-semibold mt-1">
+              <div className="mt-1 text-right text-sm font-semibold text-[#2f4954]">
                 {Number(value.durationDays || 7)} Days
               </div>
             </div>
@@ -76,6 +76,16 @@ export default function SeasonSection({ tripStatus, value, onChange }) {
             <PillButton active={value.timingPriority?.includes("price")} onClick={() => togglePriority("price")}>
               <DollarSign className="w-4 h-4 inline mr-2" /> Cheapest Price
             </PillButton>
+          </div>
+
+          <div className="mt-5 rounded-[18px] border border-[#d9ccb7] bg-[#fff7e9] p-4">
+            <div className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#60727b]">
+              Smart Window
+            </div>
+            <p className="mt-1 text-[13px] text-[#556871]">
+              Flexible timing usually unlocks better flight prices and calmer
+              crowds.
+            </p>
           </div>
         </>
       ) : null}

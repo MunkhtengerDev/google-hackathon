@@ -31,12 +31,13 @@ export default function TripStatusSection({ value, onChange }) {
         />
       </div>
 
-      <div className="mt-5 rounded-[16px] border border-slate-200 bg-slate-50/60 p-4">
-        <div className="text-[13px] font-semibold text-slate-900">Tip</div>
-        <div className="mt-1 text-[13px] text-slate-600">
+      <div className="mt-5 rounded-[20px] border border-[#ddd0bc] bg-[#fff7e9] p-4">
+        <div className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#566a73]">Planner Tip</div>
+        <div className="mt-2 text-[13px] text-[#52666f]">
           If you have flights/hotel confirmed, pick{" "}
-          <span className="font-medium">Already booked</span>. Otherwise pick{" "}
-          <span className="font-medium">Planning to book</span>.
+          <span className="font-semibold text-[#294450]">Already booked</span>.
+          Otherwise pick{" "}
+          <span className="font-semibold text-[#294450]">Planning to book</span>.
         </div>
       </div>
     </Card>

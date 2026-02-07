@@ -43,6 +43,16 @@ export default function DestinationSection({ value, onChange, mapsApiKey, onFocu
           onFocusQuery={onFocusQuery}
         />
       </div>
+
+      <div className="mt-5 rounded-[18px] border border-[#d9ccb7] bg-[#fff7e9] p-4">
+        <div className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#60727b]">
+          Multi-stop Ready
+        </div>
+        <p className="mt-1 text-[13px] text-[#556871]">
+          Add several places to preview routes and compare itinerary options in
+          real time.
+        </p>
+      </div>
     </Card>
   );
 }

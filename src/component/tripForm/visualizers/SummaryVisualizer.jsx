@@ -12,26 +12,26 @@ export default function SummaryVisualizer({ data }) {
   const hasBudget = Number(data.budget?.usdBudget || 0) > 0;
 
   const badge = data.tripStatus === "booked"
-    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-    : "bg-amber-50 text-amber-700 border-amber-200";
+    ? "bg-[#e7f6ef] text-[#24634f] border-[#bde4d3]"
+    : "bg-[#fff1db] text-[#8a5a2f] border-[#f0cf9f]";
 
   return (
-    <div className="h-full w-full flex flex-col bg-white rounded-2xl overflow-hidden shadow-[0_2px_20px_rgba(0,0,0,0.04)] border border-slate-200">
-      <div className="bg-slate-50 p-6 border-b border-slate-200">
+    <div className="flex h-full w-full flex-col overflow-hidden rounded-2xl border border-[#dfd3bf] bg-white shadow-[0_8px_26px_rgba(0,0,0,0.06)]">
+      <div className="border-b border-[#e4d8c4] bg-[#f9f2e5] p-6">
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
-            <Compass className="w-5 h-5 text-indigo-600" />
-            <span className="text-xs font-bold uppercase text-indigo-600 tracking-wider">
+            <Compass className="h-5 w-5 text-[#0c5f5c]" />
+            <span className="text-xs font-bold uppercase tracking-[0.12em] text-[#0c5f5c]">
               Trip Dashboard
             </span>
           </div>
-          <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wide border ${badge}`}>
+          <span className={`rounded px-2 py-1 text-[10px] font-bold uppercase tracking-wide border ${badge}`}>
             {data.tripStatus === "booked" ? "Confirmed Trip" : "Planning Phase"}
           </span>
         </div>
 
-        <h2 className="text-2xl font-bold text-slate-900">Your Trip Snapshot</h2>
-        <div className="mt-2 text-[13px] text-slate-600">
+        <h2 className="font-display text-[34px] leading-[1] text-[var(--ink)]">Trip Snapshot</h2>
+        <div className="mt-2 text-[13px] text-[#556972]">
           We’ll use your answers to generate itinerary, logistics, and budget strategy.
         </div>
       </div>
@@ -61,13 +61,13 @@ export default function SummaryVisualizer({ data }) {
                 {[...(data.destination.countries || []), ...(data.destination.cities || []), ...(data.destination.regions || [])]
                   .slice(0, 10)
                   .map((x) => (
-                    <span key={x} className="px-2 py-1 bg-slate-100 border border-slate-200 rounded-md text-xs font-medium text-slate-700">
+                    <span key={x} className="rounded-md border border-[#dacdb9] bg-[#fff8eb] px-2 py-1 text-xs font-medium text-[#3f5660]">
                       {x}
                     </span>
                   ))}
               </div>
             ) : (
-              <div className="text-sm text-slate-400 italic">Where to?</div>
+              <div className="text-sm italic text-slate-400">Where to?</div>
             )
           }
         />
@@ -91,8 +91,8 @@ export default function SummaryVisualizer({ data }) {
         />
       </div>
 
-      <div className="p-4 bg-slate-50 border-t border-slate-200 text-center">
-        <p className="text-xs text-slate-500">
+      <div className="border-t border-[#e4d8c4] bg-[#f9f2e5] p-4 text-center">
+        <p className="text-xs text-[#5d7079]">
           Saved locally (LocalStorage). Your data won’t disappear on refresh.
         </p>
       </div>
@@ -103,20 +103,20 @@ export default function SummaryVisualizer({ data }) {
 function Row({ icon, title, ok, text, sub, custom }) {
   return (
     <div className="flex items-start gap-4">
-      <div className={`mt-1 p-2 rounded-lg ${ok ? "bg-indigo-50 text-indigo-600" : "bg-slate-100 text-slate-400"}`}>
+      <div className={`mt-1 rounded-lg p-2 ${ok ? "bg-[#e8f7f4] text-[#0c5f5c]" : "bg-slate-100 text-slate-400"}`}>
         {icon}
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between">
-          <div className="text-xs font-semibold text-slate-500 uppercase tracking-wide">{title}</div>
+          <div className="text-xs font-semibold uppercase tracking-wide text-[#5d7078]">{title}</div>
           {ok ? <CheckCircle2 className="w-4 h-4 text-emerald-500" /> : <CircleDashed className="w-4 h-4 text-slate-300" />}
         </div>
         {custom ? custom : (
-          <div className={`text-sm font-medium mt-1 ${ok ? "text-slate-900" : "text-slate-400 italic"}`}>
+          <div className={`mt-1 text-sm font-medium ${ok ? "text-[var(--ink)]" : "text-slate-400 italic"}`}>
             {text}
           </div>
         )}
-        {sub ? <div className="text-xs text-slate-500 mt-1">{sub}</div> : null}
+        {sub ? <div className="mt-1 text-xs text-[#61747d]">{sub}</div> : null}
       </div>
     </div>
   );

@@ -15,10 +15,11 @@ export default function LocationInput({
 }) {
   const [input, setInput] = useState("");
   const [ready, setReady] = useState(false);
+  const [focused, setFocused] = useState(false);
   const inputRef = useRef(null);
   const acRef = useRef(null);
 
-  const items = Array.isArray(value) ? value : [];
+  const items = useMemo(() => (Array.isArray(value) ? value : []), [value]);
 
   const canAdd = useMemo(() => {
     const t = input.trim();
@@ -71,10 +72,18 @@ export default function LocationInput({
   }, [apiKey]);
 
   return (
-    <Field label={label} hint={hint} right={<div className="text-[12px] text-slate-500">{items.length}/{max}</div>}>
-      <ControlShell className="bg-white">
+    <Field
+      label={label}
+      hint={hint}
+      right={
+        <div className="rounded-full border border-[#d8ccb8] bg-[#fff8eb] px-2 py-0.5 text-[11px] font-semibold text-[#60727b]">
+          {items.length}/{max}
+        </div>
+      }
+    >
+      <ControlShell focused={focused} className="bg-white">
         <div className="flex items-center gap-2">
-          <MapPin className="w-4 h-4 text-slate-400" />
+          <MapPin className="h-4 w-4 text-[#6d7c84]" />
           <input
             ref={inputRef}
             value={input}
@@ -82,7 +91,11 @@ export default function LocationInput({
               setInput(e.target.value);
               onFocusQuery?.(e.target.value);
             }}
-            onFocus={() => onFocusQuery?.(input || items[items.length - 1] || "")}
+            onFocus={() => {
+              setFocused(true);
+              onFocusQuery?.(input || items[items.length - 1] || "");
+            }}
+            onBlur={() => setFocused(false)}
             onKeyDown={(e) => {
               if (e.key === "Enter") {
                 e.preventDefault();
@@ -90,12 +103,12 @@ export default function LocationInput({
               }
             }}
             placeholder={ready ? placeholder : "Type a place (autocomplete disabled)…"}
-            className="w-full bg-transparent outline-none text-sm text-slate-900 placeholder:text-slate-400"
+            className="w-full bg-transparent text-sm text-[var(--ink)] outline-none placeholder:text-[#819199]"
           />
           <button
             type="button"
             onClick={() => canAdd && addItem()}
-            className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 transition"
+            className="rounded-xl border border-[#d8ccb8] bg-[#fff6e8] p-2 text-[#35505c] transition hover:border-[#cabca6] hover:bg-[#ffefd4]"
             aria-label="Add"
           >
             <Plus className="w-4 h-4" />
@@ -107,10 +120,10 @@ export default function LocationInput({
             {items.map((t) => (
               <span
                 key={t}
-                className="inline-flex items-center gap-2 pl-3 pr-2 py-1.5 rounded-full bg-slate-900 text-white text-[13px]"
+                className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-[#0c5f5c] to-[#0a4d4a] py-1.5 pl-3 pr-2 text-[13px] text-white"
               >
                 {t}
-                <button type="button" onClick={() => removeItem(t)} className="text-white/80 hover:text-red-200">
+                <button type="button" onClick={() => removeItem(t)} className="text-white/80 hover:text-amber-100">
                   <X className="w-3 h-3" />
                 </button>
               </span>
