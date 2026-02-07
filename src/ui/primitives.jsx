@@ -1,145 +1,178 @@
 import React from "react";
-import { ui } from "./tokens";
+
+// Visual Design Tokens (Airbnb/Lemonade Style)
+export const ui = {
+  layout: {
+    centered: "max-w-2xl mx-auto",
+    split: "grid grid-cols-1 lg:grid-cols-12 gap-8 h-full",
+  },
+  surface: {
+    base: "bg-[#F7F7F7]", // Light grey background like Airbnb
+    card: "bg-white",
+    input: "bg-white",
+  },
+  text: {
+    display: "font-serif text-[32px] sm:text-[40px] leading-[1.1] font-medium text-[#222222]",
+    body: "font-sans text-[16px] leading-relaxed text-[#717171]",
+    label: "font-sans text-[12px] font-bold uppercase tracking-wider text-[#717171]",
+  },
+  shadow: {
+    soft: "shadow-[0_6px_16px_rgba(0,0,0,0.08)]",
+    floating: "shadow-[0_16px_32px_rgba(0,0,0,0.12)]",
+  },
+  radius: {
+    card: "rounded-[24px]",
+    button: "rounded-full",
+    input: "rounded-[12px]",
+  },
+  animation: {
+    fade: "transition-opacity duration-500",
+    slide: "transition-transform duration-500 ease-out",
+  }
+};
 
 export function Card({ children, className = "" }) {
   return (
-    <section
-      className={[
-        "motion-rise",
-        "relative overflow-hidden",
-        ui.surface.card,
-        ui.radius.card,
-        ui.border.hairline,
-        ui.shadow.card,
-        "p-5 sm:p-7 backdrop-blur-[2px]",
-        className,
-      ].join(" ")}
+    <div
+      className={`
+        ${ui.surface.card}
+        ${ui.radius.card}
+        ${ui.shadow.soft}
+        p-8 sm:p-10
+        border border-gray-100
+        overflow-visible min-w-0
+        ${className}
+      `}
     >
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-white/75 to-transparent" />
-      <div className="relative">{children}</div>
-    </section>
+      {children}
+    </div>
   );
 }
+
 
 export function SectionHeader({ icon, title, subtitle, right }) {
   return (
-    <div className="mb-6 flex items-start justify-between gap-4">
-      <div className="min-w-0">
-        <div className="flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-[16px] bg-gradient-to-br from-[#0d6a66] via-[#0c5f5c] to-[#084744] text-white shadow-[0_12px_24px_rgba(12,95,92,0.32)]">
-            {icon}
+    <div className="mb-10">
+      <div className="flex items-start justify-between gap-3 min-w-0 overflow-visible">
+        {/* Left */}
+        <div className="min-w-0">
+          <div className="flex items-center gap-3 min-w-0">
+            {icon ? (
+              <div className="shrink-0 text-[#35505c]">{icon}</div>
+            ) : null}
+
+            <h2 className={`${ui.text.display} min-w-0 truncate`}>
+              {title}
+            </h2>
           </div>
-          <h2 className={ui.text.title}>{title}</h2>
+
+          {subtitle ? (
+            <p className="mt-3 text-[18px] text-[#717171] max-w-lg">
+              {subtitle}
+            </p>
+          ) : null}
         </div>
-        {subtitle ? <p className={[ui.text.subtitle, "mt-2"].join(" ")}>{subtitle}</p> : null}
+
+        {/* Right */}
+        {right ? (
+          <div className="shrink-0 overflow-visible">
+            <div className="flex items-center gap-2 flex-wrap justify-end">
+              {right}
+            </div>
+          </div>
+        ) : null}
       </div>
-      {right ? <div className="shrink-0">{right}</div> : null}
     </div>
   );
 }
 
-export function Field({ label, hint, right, children }) {
+export function Field({ label, children, right }) {
   return (
-    <div className="space-y-2">
-      <div className="flex items-end justify-between gap-3">
-        <div className="min-w-0">
-          {label ? <div className={ui.text.label}>{label}</div> : null}
-          {hint ? <div className={[ui.text.helper, "mt-1"].join(" ")}>{hint}</div> : null}
-        </div>
-        {right ? <div className="shrink-0">{right}</div> : null}
+    <div className="group mb-6">
+      <div className="flex items-baseline justify-between mb-2">
+        {label && <label className={ui.text.label}>{label}</label>}
+        {right && <div>{right}</div>}
       </div>
       {children}
     </div>
   );
 }
 
-export function ControlShell({ focused, children, className = "" }) {
+export function ControlShell({ children, focused, className = "" }) {
   return (
     <div
-      className={[
-        ui.radius.control,
-        ui.border.hairline,
-        ui.surface.tint,
-        "px-4 py-3 transition-all duration-200",
-        focused ? ui.border.focus : "",
-        className,
-      ].join(" ")}
+      className={`
+        relative flex items-center
+        ${ui.surface.input} 
+        ${ui.radius.input} 
+        border-[1px] 
+        transition-all duration-300
+        p-4
+        ${focused 
+          ? "border-black shadow-[0_0_0_1px_black]" 
+          : "border-[#DDDDDD] hover:border-[#B0B0B0]"
+        }
+        ${className}
+      `}
     >
       {children}
     </div>
   );
 }
 
-export function PillButton({ active, children, onClick, className = "", type = "button" }) {
-  return (
-    <button
-      type={type}
-      onClick={onClick}
-      className={[
-        ui.radius.pill,
-        "px-4 py-2 text-[13px] font-semibold transition-all duration-200 select-none hover:-translate-y-[1px]",
-        active
-          ? "bg-gradient-to-r from-[#0d6a66] to-[#084744] text-white shadow-[0_10px_20px_rgba(12,95,92,0.30)]"
-          : "border border-[var(--line)] bg-white text-[#31454f] hover:border-[var(--line-strong)] hover:bg-[#fff9ef]",
-        className,
-      ].join(" ")}
-    >
-      {children}
-    </button>
-  );
-}
-
-export function OptionCard({ active, onClick, title, description, icon, meta }) {
+// Lemonade/Wealthfront style big selection cards
+export function OptionCard({ active, onClick, title, description, icon }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className={[
-        "group w-full text-left",
-        "p-5 sm:p-6",
-        "rounded-[22px] border transition-all duration-200",
-        active
-          ? "border-transparent bg-gradient-to-br from-[#0f706c] via-[#0b5a58] to-[#084744] text-white shadow-[0_20px_40px_rgba(12,95,92,0.32)]"
-          : "border-[var(--line)] bg-[#fffdf9] hover:-translate-y-0.5 hover:border-[var(--line-strong)] hover:bg-white hover:shadow-[0_16px_34px_rgba(15,23,42,0.11)]",
-      ].join(" ")}
+      className={`
+        relative w-full text-left p-6 transition-all duration-300
+        ${ui.radius.input}
+        border-[2px]
+        ${active
+          ? "border-[#FF385C] bg-[#FFF0F3]" // Airbnb/Lemonade Accent (Red/Pinkish) or Teal
+          : "border-[#DDDDDD] bg-white hover:border-[#B0B0B0]"
+        }
+      `}
     >
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex items-start gap-4">
-          <div
-            className={[
-              "h-12 w-12 rounded-[16px] flex items-center justify-center",
-              active ? "bg-white/14" : "bg-[#f8efdc] text-[#35505a] group-hover:bg-[#f5e6ca]",
-            ].join(" ")}
-          >
-            {icon}
+      <div className="flex items-start gap-4">
+        {/* Icon Circle */}
+        <div className={`
+          w-10 h-10 rounded-full flex items-center justify-center text-lg
+          ${active ? "bg-[#FF385C] text-white" : "bg-[#F7F7F7] text-[#222]"}
+        `}>
+          {icon}
+        </div>
+        <div>
+          <div className={`text-[18px] font-semibold ${active ? "text-[#FF385C]" : "text-[#222]"}`}>
+            {title}
           </div>
-          <div className="min-w-0">
-            <div
-              className={[
-                "text-[16px] font-semibold tracking-[-0.01em]",
-                active ? "text-white" : "text-[var(--ink)]",
-              ].join(" ")}
-            >
-              {title}
-            </div>
-            {description ? (
-              <div
-                className={[
-                  "mt-1 text-[13px] leading-relaxed",
-                  active ? "text-white/85" : "text-[var(--ink-soft)]",
-                ].join(" ")}
-              >
-                {description}
-              </div>
-            ) : null}
+          <div className="text-[14px] text-[#717171] mt-1 leading-normal">
+            {description}
           </div>
         </div>
-        {meta ? (
-          <div className={["text-[12px] font-semibold", active ? "text-white/85" : "text-[#60717a]"].join(" ")}>
-            {meta}
-          </div>
-        ) : null}
       </div>
+    </button>
+  );
+}
+
+export function PillButton({ active, onClick, children, className = "" }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`
+        px-6 py-3 text-[14px] font-semibold transition-all duration-200 transform
+        ${ui.radius.button}
+        ${active
+          ? "bg-[#222222] text-white scale-105 shadow-md"
+          : "bg-white border border-[#DDDDDD] text-[#222] hover:border-black"
+        }
+        ${className}
+      `}
+    >
+      {children}
     </button>
   );
 }

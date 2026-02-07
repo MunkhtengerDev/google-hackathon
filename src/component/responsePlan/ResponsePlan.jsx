@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState } from 'react';
 import {
   Brain,
   Route,
@@ -13,11 +13,11 @@ import {
   MapPin,
   Clock,
   Sparkles,
-} from "lucide-react";
-import { Card, SectionHeader } from "../../ui/primitives";
+} from 'lucide-react';
+import { Card, SectionHeader } from '../../ui/primitives';
 
 function formatTimestamp(value) {
-  if (!value) return "Not available";
+  if (!value) return 'Not available';
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return String(value);
   return date.toLocaleString();
@@ -29,29 +29,29 @@ function formatTimestamp(value) {
  * - Keeps content as plain text blocks
  * - Also extracts a quick "Budget Allocation" list if present
  */
-function parseMarkdownSections(md = "") {
-  const text = String(md || "").trim();
+function parseMarkdownSections(md = '') {
+  const text = String(md || '').trim();
   if (!text) return [];
 
   // Normalize line endings
-  const normalized = text.replace(/\r\n/g, "\n");
+  const normalized = text.replace(/\r\n/g, '\n');
 
   // Split by "## "
   const parts = normalized.split(/\n(?=##\s+)/g);
 
   // If the response doesn't contain "##", treat as one section
   if (parts.length === 1 && !/^##\s+/.test(parts[0])) {
-    return [{ title: "AI Response", content: normalized }];
+    return [{ title: 'AI Response', content: normalized }];
   }
 
   const sections = parts
     .map((block) => block.trim())
     .filter(Boolean)
     .map((block) => {
-      const lines = block.split("\n");
-      const first = lines[0] || "";
-      const title = first.replace(/^##\s+/, "").trim() || "Untitled";
-      const content = lines.slice(1).join("\n").trim();
+      const lines = block.split('\n');
+      const first = lines[0] || '';
+      const title = first.replace(/^##\s+/, '').trim() || 'Untitled';
+      const content = lines.slice(1).join('\n').trim();
       return { title, content };
     });
 
@@ -60,16 +60,16 @@ function parseMarkdownSections(md = "") {
 
 /** Extract budget lines like "* Flights: $1500" from a "Budget Allocation" section */
 function extractBudgetItems(sections) {
-  const target = sections.find((s) => /budget allocation/i.test(s.title || ""));
+  const target = sections.find((s) => /budget allocation/i.test(s.title || ''));
   if (!target?.content) return [];
 
-  const lines = target.content.split("\n").map((l) => l.trim());
+  const lines = target.content.split('\n').map((l) => l.trim());
   const items = [];
   for (const line of lines) {
     // match "- **Flights ...:** $1500" or "* Flights ...: $1500"
     const cleaned = line
-      .replace(/^[*\-]\s+/, "")
-      .replace(/\*\*/g, "")
+      .replace(/^[*\-]\s+/, '')
+      .replace(/\*\*/g, '')
       .trim();
 
     const m = cleaned.match(/^(.+?):\s*(.+)$/);
@@ -83,10 +83,10 @@ function extractBudgetItems(sections) {
 /** Simple “day-by-day” extractor (looks for "Day 1:", "Day 2:" etc.) */
 function extractDays(sections) {
   const target = sections.find((s) =>
-    /(day-by-day|itinerary)/i.test(s.title || "")
+    /(day-by-day|itinerary)/i.test(s.title || ''),
   );
   if (!target?.content) return [];
-  const lines = target.content.split("\n");
+  const lines = target.content.split('\n');
   const days = [];
   for (const raw of lines) {
     const line = raw.trim();
@@ -104,20 +104,20 @@ function NavItem({ active, icon, label, onClick, badge }) {
       type="button"
       onClick={onClick}
       className={[
-        "group w-full rounded-2xl px-3.5 py-3 text-left transition",
+        'group w-full rounded-2xl px-3.5 py-3 text-left transition',
         active
-          ? "bg-[#0b5b57] text-white shadow-[0_14px_30px_rgba(11,91,87,0.20)]"
-          : "bg-transparent text-[#2f4954] hover:bg-[#fff3df]",
-      ].join(" ")}
+          ? 'bg-[#0b5b57] text-white shadow-[0_14px_30px_rgba(11,91,87,0.20)]'
+          : 'bg-transparent text-[#2f4954] hover:bg-[#fff3df]',
+      ].join(' ')}
     >
       <div className="flex items-center gap-3">
         <div
           className={[
-            "grid h-9 w-9 place-items-center rounded-xl border transition",
+            'grid h-9 w-9 place-items-center rounded-xl border transition',
             active
-              ? "border-white/20 bg-white/10"
-              : "border-[#e8dcc8] bg-[#fffaf1] group-hover:bg-white",
-          ].join(" ")}
+              ? 'border-white/20 bg-white/10'
+              : 'border-[#e8dcc8] bg-[#fffaf1] group-hover:bg-white',
+          ].join(' ')}
         >
           {icon}
         </div>
@@ -127,11 +127,11 @@ function NavItem({ active, icon, label, onClick, badge }) {
             {badge ? (
               <span
                 className={[
-                  "rounded-full px-2 py-0.5 text-[10px] font-bold",
+                  'rounded-full px-2 py-0.5 text-[10px] font-bold',
                   active
-                    ? "bg-white/15 text-white"
-                    : "bg-[#ffe6bf] text-[#6a4a12]",
-                ].join(" ")}
+                    ? 'bg-white/15 text-white'
+                    : 'bg-[#ffe6bf] text-[#6a4a12]',
+                ].join(' ')}
               >
                 {badge}
               </span>
@@ -139,9 +139,9 @@ function NavItem({ active, icon, label, onClick, badge }) {
           </div>
           <div
             className={[
-              "mt-0.5 flex items-center gap-1 text-[11px]",
-              active ? "text-white/75" : "text-[#74878f]",
-            ].join(" ")}
+              'mt-0.5 flex items-center gap-1 text-[11px]',
+              active ? 'text-white/75' : 'text-[#74878f]',
+            ].join(' ')}
           >
             <ChevronRight className="h-3 w-3" />
             View details
@@ -179,26 +179,26 @@ function EmptyState({ title, subtitle }) {
  * - Pass your AI response string (tripPlanText or resultText)
  */
 export default function ResponsePlan({
-  title = "Trip Dashboard",
-  subtitle = "Switch views from the sidebar to explore your plan.",
-  responseText = "",
-  planResponseText = "",
-  liveResponseText = "",
+  title = 'Trip Dashboard',
+  subtitle = 'Switch views from the sidebar to explore your plan.',
+  responseText = '',
+  planResponseText = '',
+  liveResponseText = '',
   smartPlanCount = 5, // 3 / 5 / 7
   isLoading = false,
-  loadError = "",
-  lastPlanAt = "",
-  lastLiveAt = "",
+  loadError = '',
+  lastPlanAt = '',
+  lastLiveAt = '',
   onRefresh,
   rightNowContext,
 }) {
-  const [active, setActive] = useState("smart");
-  const sourcePlanText = String(planResponseText || responseText || "");
-  const sourceLiveText = String(liveResponseText || "");
+  const [active, setActive] = useState('smart');
+  const sourcePlanText = String(planResponseText || responseText || '');
+  const sourceLiveText = String(liveResponseText || '');
 
   const sections = useMemo(
     () => parseMarkdownSections(sourcePlanText),
-    [sourcePlanText]
+    [sourcePlanText],
   );
 
   const days = useMemo(() => extractDays(sections), [sections]);
@@ -209,7 +209,7 @@ export default function ResponsePlan({
     const count = [3, 5, 7].includes(smartPlanCount) ? smartPlanCount : 5;
     const base = days.length
       ? days
-      : [{ day: 1, text: "No itinerary parsed yet." }];
+      : [{ day: 1, text: 'No itinerary parsed yet.' }];
 
     // Create simple variants by shifting emphasis (early/mid/late)
     const variants = [];
@@ -221,10 +221,10 @@ export default function ResponsePlan({
         name: `Option ${i + 1}`,
         highlight:
           offset === 0
-            ? "Classic pace • balanced"
+            ? 'Classic pace • balanced'
             : offset === 1
-            ? "Faster pace • more sights"
-            : "Slower pace • more comfort",
+              ? 'Faster pace • more sights'
+              : 'Slower pace • more comfort',
         items: chunk,
       });
     }
@@ -258,33 +258,33 @@ export default function ResponsePlan({
 
           <div className="space-y-2">
             <NavItem
-              active={active === "smart"}
-              onClick={() => setActive("smart")}
+              active={active === 'smart'}
+              onClick={() => setActive('smart')}
               label="🧠 Smart Plans"
               badge={`${smartPlanCount}`}
               icon={<Brain className="h-4 w-4" />}
             />
             <NavItem
-              active={active === "route"}
-              onClick={() => setActive("route")}
+              active={active === 'route'}
+              onClick={() => setActive('route')}
               label="🗺️ Live Route"
               icon={<Route className="h-4 w-4" />}
             />
             <NavItem
-              active={active === "wallet"}
-              onClick={() => setActive("wallet")}
+              active={active === 'wallet'}
+              onClick={() => setActive('wallet')}
               label="💰 Wallet"
               icon={<Wallet className="h-4 w-4" />}
             />
             <NavItem
-              active={active === "memories"}
-              onClick={() => setActive("memories")}
+              active={active === 'memories'}
+              onClick={() => setActive('memories')}
               label="📸 Memories"
               icon={<Camera className="h-4 w-4" />}
             />
             <NavItem
-              active={active === "rightnow"}
-              onClick={() => setActive("rightnow")}
+              active={active === 'rightnow'}
+              onClick={() => setActive('rightnow')}
               label="⚡ Right Now"
               icon={<Zap className="h-4 w-4" />}
             />
@@ -299,7 +299,9 @@ export default function ResponsePlan({
           </div>
           <div className="mt-3 rounded-2xl border border-[#eadfcf] bg-[#fffaf1] px-3 py-2 text-[11px] text-[#5d727c]">
             <div>Plan updated: {formatTimestamp(lastPlanAt)}</div>
-            <div className="mt-1">Live updated: {formatTimestamp(lastLiveAt)}</div>
+            <div className="mt-1">
+              Live updated: {formatTimestamp(lastLiveAt)}
+            </div>
           </div>
         </Card>
       </aside>
@@ -353,12 +355,12 @@ export default function ResponsePlan({
                     type="button"
                     onClick={() => {
                       const blob = new Blob([sourcePlanText], {
-                        type: "text/plain;charset=utf-8",
+                        type: 'text/plain;charset=utf-8',
                       });
                       const url = URL.createObjectURL(blob);
-                      const a = document.createElement("a");
+                      const a = document.createElement('a');
                       a.href = url;
-                      a.download = "trip-plan.txt";
+                      a.download = 'trip-plan.txt';
                       a.click();
                       URL.revokeObjectURL(url);
                     }}
@@ -371,7 +373,7 @@ export default function ResponsePlan({
               </div>
             </Card>
 
-            {active === "smart" ? (
+            {active === 'smart' ? (
               <Card>
                 <SectionHeader
                   icon={<Brain className="h-5 w-5" />}
@@ -388,7 +390,7 @@ export default function ResponsePlan({
                           // parent controls recommended; local fallback:
                           // eslint-disable-next-line no-alert
                           alert(
-                            "Tip: control smartPlanCount from parent. This is UI-only."
+                            'Tip: control smartPlanCount from parent. This is UI-only.',
                           );
                         }}
                         className="rounded-full border border-[var(--line)] bg-white px-3 py-1.5 text-xs font-semibold text-[#2f4954]"
@@ -452,7 +454,7 @@ export default function ResponsePlan({
               </Card>
             ) : null}
 
-            {active === "route" ? (
+            {active === 'route' ? (
               <Card>
                 <SectionHeader
                   icon={<Route className="h-5 w-5" />}
@@ -521,7 +523,7 @@ export default function ResponsePlan({
               </Card>
             ) : null}
 
-            {active === "wallet" ? (
+            {active === 'wallet' ? (
               <Card>
                 <SectionHeader
                   icon={<Wallet className="h-5 w-5" />}
@@ -579,10 +581,10 @@ export default function ResponsePlan({
 
                       <div className="mt-4 space-y-2">
                         {[
-                          "Convert home currency → destination currency",
-                          "Daily spending limit suggestions",
-                          "Track hotels / tickets / activities",
-                          "Overspend risk alerts",
+                          'Convert home currency → destination currency',
+                          'Daily spending limit suggestions',
+                          'Track hotels / tickets / activities',
+                          'Overspend risk alerts',
                         ].map((t) => (
                           <div
                             key={t}
@@ -598,7 +600,7 @@ export default function ResponsePlan({
               </Card>
             ) : null}
 
-            {active === "memories" ? (
+            {active === 'memories' ? (
               <Card>
                 <SectionHeader
                   icon={<Camera className="h-5 w-5" />}
@@ -642,10 +644,10 @@ export default function ResponsePlan({
 
                       <div className="mt-4 space-y-2">
                         {[
-                          "Trip / Paris / Day-01",
-                          "Trip / Paris / Day-02",
-                          "Trip / Spain / Day-10",
-                          "Trip / Receipts / Wallet",
+                          'Trip / Paris / Day-01',
+                          'Trip / Paris / Day-02',
+                          'Trip / Spain / Day-10',
+                          'Trip / Receipts / Wallet',
                         ].map((t) => (
                           <div
                             key={t}
@@ -669,7 +671,7 @@ export default function ResponsePlan({
               </Card>
             ) : null}
 
-            {active === "rightnow" ? (
+            {active === 'rightnow' ? (
               <Card>
                 <SectionHeader
                   icon={<Zap className="h-5 w-5" />}
@@ -690,19 +692,19 @@ export default function ResponsePlan({
                       <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
                         {[
                           {
-                            t: "Find nearby art museums",
+                            t: 'Find nearby art museums',
                             i: <MapPin className="h-4 w-4" />,
                           },
                           {
-                            t: "Best cafe within 15 min walk",
+                            t: 'Best cafe within 15 min walk',
                             i: <MapPin className="h-4 w-4" />,
                           },
                           {
-                            t: "Sunset viewpoint + route",
+                            t: 'Sunset viewpoint + route',
                             i: <Route className="h-4 w-4" />,
                           },
                           {
-                            t: "Buy timed tickets now",
+                            t: 'Buy timed tickets now',
                             i: <Clock className="h-4 w-4" />,
                           },
                         ].map((x) => (

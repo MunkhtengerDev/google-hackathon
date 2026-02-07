@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft,
   Camera,
@@ -9,52 +9,52 @@ import {
   Square,
   UploadCloud,
   Loader2,
-} from "lucide-react";
-import { Card, ControlShell, SectionHeader } from "../../ui/primitives";
+} from 'lucide-react';
+import { Card, ControlShell, SectionHeader } from '../../ui/primitives';
 
 const API_BASE_URL = (
-  import.meta.env.VITE_API_BASE_URL || "http://localhost:9008"
-).replace(/\/$/, "");
+  import.meta.env.VITE_API_BASE_URL || 'http://localhost:9008'
+).replace(/\/$/, '');
 
 function fileToDataUrl(file) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result || ""));
-    reader.onerror = () => reject(new Error("Failed to read selected file"));
+    reader.onload = () => resolve(String(reader.result || ''));
+    reader.onerror = () => reject(new Error('Failed to read selected file'));
     reader.readAsDataURL(file);
   });
 }
 
 function formatBytes(bytes) {
-  if (!Number.isFinite(bytes) || bytes <= 0) return "0 B";
+  if (!Number.isFinite(bytes) || bytes <= 0) return '0 B';
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
 }
 
 function getCameraErrorMessage(error) {
-  const name = error?.name || "";
-  if (name === "NotAllowedError" || name === "SecurityError") {
-    return "Camera permission denied. Allow camera access in your browser/site settings.";
+  const name = error?.name || '';
+  if (name === 'NotAllowedError' || name === 'SecurityError') {
+    return 'Camera permission denied. Allow camera access in your browser/site settings.';
   }
-  if (name === "NotFoundError" || name === "DevicesNotFoundError") {
-    return "No camera device was found on this machine.";
+  if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
+    return 'No camera device was found on this machine.';
   }
-  if (name === "NotReadableError" || name === "TrackStartError") {
-    return "Camera is busy. Close other apps using the camera and try again.";
+  if (name === 'NotReadableError' || name === 'TrackStartError') {
+    return 'Camera is busy. Close other apps using the camera and try again.';
   }
-  if (name === "OverconstrainedError") {
-    return "Requested camera mode is not available on this device.";
+  if (name === 'OverconstrainedError') {
+    return 'Requested camera mode is not available on this device.';
   }
-  if (name === "TypeError") {
-    return "Invalid camera request. Please retry.";
+  if (name === 'TypeError') {
+    return 'Invalid camera request. Please retry.';
   }
-  return error?.message || "Unable to open camera";
+  return error?.message || 'Unable to open camera';
 }
 
 async function attachStreamToVideo(videoElement, stream) {
   if (!videoElement) {
-    throw new Error("Video preview element is missing");
+    throw new Error('Video preview element is missing');
   }
 
   videoElement.srcObject = stream;
@@ -64,8 +64,8 @@ async function attachStreamToVideo(videoElement, stream) {
       cleanup();
       reject(
         new Error(
-          "Camera started but no video frames were received. Check browser camera permission and system privacy settings."
-        )
+          'Camera started but no video frames were received. Check browser camera permission and system privacy settings.',
+        ),
       );
     }, 3500);
 
@@ -76,24 +76,24 @@ async function attachStreamToVideo(videoElement, stream) {
 
     const cleanup = () => {
       window.clearTimeout(timeout);
-      videoElement.removeEventListener("loadedmetadata", onLoaded);
+      videoElement.removeEventListener('loadedmetadata', onLoaded);
     };
 
-    videoElement.addEventListener("loadedmetadata", onLoaded, { once: true });
+    videoElement.addEventListener('loadedmetadata', onLoaded, { once: true });
   });
 
   await videoElement.play();
 
   if (!videoElement.videoWidth || !videoElement.videoHeight) {
     throw new Error(
-      "Camera preview is still not ready. Please retry after allowing camera access."
+      'Camera preview is still not ready. Please retry after allowing camera access.',
     );
   }
 }
 
 async function requestBrowserLocation() {
   if (!navigator.geolocation) {
-    throw new Error("Geolocation is not supported in this browser");
+    throw new Error('Geolocation is not supported in this browser');
   }
 
   const position = await new Promise((resolve, reject) => {
@@ -111,23 +111,23 @@ async function requestBrowserLocation() {
 }
 
 async function reverseGeocode(latitude, longitude) {
-  const url = new URL("https://nominatim.openstreetmap.org/reverse");
-  url.searchParams.set("format", "jsonv2");
-  url.searchParams.set("lat", String(latitude));
-  url.searchParams.set("lon", String(longitude));
+  const url = new URL('https://nominatim.openstreetmap.org/reverse');
+  url.searchParams.set('format', 'jsonv2');
+  url.searchParams.set('lat', String(latitude));
+  url.searchParams.set('lon', String(longitude));
 
   const response = await fetch(url.toString(), {
     headers: {
-      Accept: "application/json",
+      Accept: 'application/json',
     },
   });
 
   if (!response.ok) {
-    throw new Error("Failed to resolve address from coordinates");
+    throw new Error('Failed to resolve address from coordinates');
   }
 
   const payload = await response.json();
-  return typeof payload?.display_name === "string" ? payload.display_name : "";
+  return typeof payload?.display_name === 'string' ? payload.display_name : '';
 }
 
 export default function AIImageRequestPage({
@@ -140,16 +140,16 @@ export default function AIImageRequestPage({
   const videoRef = useRef(null);
   const streamRef = useRef(null);
 
-  const [imageDataUrl, setImageDataUrl] = useState("");
+  const [imageDataUrl, setImageDataUrl] = useState('');
   const [sharedLocation, setSharedLocation] = useState(null);
-  const [locationStatus, setLocationStatus] = useState("Location not shared");
+  const [locationStatus, setLocationStatus] = useState('Location not shared');
   const [isSharingLocation, setIsSharingLocation] = useState(false);
-  const [userPrompt, setUserPrompt] = useState("");
-  const [resultText, setResultText] = useState("");
+  const [userPrompt, setUserPrompt] = useState('');
+  const [resultText, setResultText] = useState('');
   const [isSending, setIsSending] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState('');
   const [status, setStatus] = useState(
-    "Share location, upload image, capture photo, or type a prompt to start."
+    'Share location, upload image, capture photo, or type a prompt to start.',
   );
   const [compressedBytes, setCompressedBytes] = useState(0);
   const [cameraOpen, setCameraOpen] = useState(false);
@@ -161,10 +161,10 @@ export default function AIImageRequestPage({
   const canSend = hasSendInput && Boolean(user?.id) && !isSending;
 
   const previewLabel = useMemo(() => {
-    if (!imageDataUrl) return "No image selected";
-    const prefix = imageDataUrl.startsWith("data:image")
-      ? imageDataUrl.slice(5, imageDataUrl.indexOf(";"))
-      : "image";
+    if (!imageDataUrl) return 'No image selected';
+    const prefix = imageDataUrl.startsWith('data:image')
+      ? imageDataUrl.slice(5, imageDataUrl.indexOf(';'))
+      : 'image';
     return `${prefix} ready`;
   }, [imageDataUrl]);
 
@@ -180,10 +180,10 @@ export default function AIImageRequestPage({
   };
 
   const startCamera = async () => {
-    setError("");
+    setError('');
     try {
       if (!navigator.mediaDevices?.getUserMedia) {
-        throw new Error("Camera API is not supported in this browser");
+        throw new Error('Camera API is not supported in this browser');
       }
 
       stopCamera();
@@ -191,7 +191,7 @@ export default function AIImageRequestPage({
       const cameraConstraints = [
         {
           video: {
-            facingMode: { ideal: "environment" },
+            facingMode: { ideal: 'environment' },
             width: { ideal: 1280 },
             height: { ideal: 720 },
           },
@@ -199,7 +199,7 @@ export default function AIImageRequestPage({
         },
         {
           video: {
-            facingMode: "user",
+            facingMode: 'user',
             width: { ideal: 1280 },
             height: { ideal: 720 },
           },
@@ -217,9 +217,8 @@ export default function AIImageRequestPage({
       for (const constraints of cameraConstraints) {
         let candidateStream = null;
         try {
-          candidateStream = await navigator.mediaDevices.getUserMedia(
-            constraints
-          );
+          candidateStream =
+            await navigator.mediaDevices.getUserMedia(constraints);
           try {
             await attachStreamToVideo(videoRef.current, candidateStream);
           } catch (attachError) {
@@ -237,15 +236,15 @@ export default function AIImageRequestPage({
       }
 
       if (!stream) {
-        throw lastError || new Error("Unable to initialize camera preview");
+        throw lastError || new Error('Unable to initialize camera preview');
       }
 
       streamRef.current = stream;
       setCameraOpen(true);
-      setStatus("Camera ready. Capture a frame when you are set.");
+      setStatus('Camera ready. Capture a frame when you are set.');
     } catch (cameraError) {
       setError(getCameraErrorMessage(cameraError));
-      setStatus("Camera unavailable. Fix permissions and try again.");
+      setStatus('Camera unavailable. Fix permissions and try again.');
       stopCamera();
     }
   };
@@ -256,7 +255,7 @@ export default function AIImageRequestPage({
     const video = videoRef.current;
     if (!video.videoWidth || !video.videoHeight) {
       setError(
-        "Camera preview is not ready yet. Wait a moment or reopen the camera."
+        'Camera preview is not ready yet. Wait a moment or reopen the camera.',
       );
       return;
     }
@@ -264,18 +263,18 @@ export default function AIImageRequestPage({
     const width = video.videoWidth || 1280;
     const height = video.videoHeight || 720;
 
-    const canvas = document.createElement("canvas");
+    const canvas = document.createElement('canvas');
     canvas.width = width;
     canvas.height = height;
-    const ctx = canvas.getContext("2d");
+    const ctx = canvas.getContext('2d');
     if (!ctx) return;
     ctx.drawImage(video, 0, 0, width, height);
 
-    const dataUrl = canvas.toDataURL("image/jpeg", 0.9);
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
     setImageDataUrl(dataUrl);
-    setResultText("");
-    setError("");
-    setStatus("Photo captured. Ready to send.");
+    setResultText('');
+    setError('');
+    setStatus('Photo captured. Ready to send.');
     stopCamera();
   };
 
@@ -286,31 +285,31 @@ export default function AIImageRequestPage({
     try {
       const dataUrl = await fileToDataUrl(file);
       setImageDataUrl(dataUrl);
-      setResultText("");
-      setError("");
-      setStatus("Image loaded. Ready to send.");
+      setResultText('');
+      setError('');
+      setStatus('Image loaded. Ready to send.');
       stopCamera();
     } catch (fileError) {
-      setError(fileError.message || "Failed to load image");
+      setError(fileError.message || 'Failed to load image');
     } finally {
-      if (event.target) event.target.value = "";
+      if (event.target) event.target.value = '';
     }
   };
 
   const shareLocation = async () => {
     setIsSharingLocation(true);
-    setError("");
+    setError('');
     try {
       const location = await requestBrowserLocation();
 
-      let resolvedAddress = "";
+      let resolvedAddress = '';
       try {
         resolvedAddress = await reverseGeocode(
           location.locationLatitude,
-          location.locationLongitude
+          location.locationLongitude,
         );
       } catch {
-        resolvedAddress = "";
+        resolvedAddress = '';
       }
 
       const nextSharedLocation = {
@@ -319,7 +318,7 @@ export default function AIImageRequestPage({
           ? { address: resolvedAddress }
           : {
               address: `Approximate coordinates: ${location.locationLatitude.toFixed(
-                5
+                5,
               )}, ${location.locationLongitude.toFixed(5)}`,
             }),
       };
@@ -329,13 +328,13 @@ export default function AIImageRequestPage({
         resolvedAddress
           ? `Shared: ${resolvedAddress}`
           : `Shared: ${location.locationLatitude.toFixed(
-              5
-            )}, ${location.locationLongitude.toFixed(5)}`
+              5,
+            )}, ${location.locationLongitude.toFixed(5)}`,
       );
-      setStatus("Location shared. You can send now.");
+      setStatus('Location shared. You can send now.');
     } catch (locationError) {
-      setLocationStatus("Location not shared");
-      setError(locationError.message || "Unable to share location");
+      setLocationStatus('Location not shared');
+      setError(locationError.message || 'Unable to share location');
     } finally {
       setIsSharingLocation(false);
     }
@@ -345,41 +344,41 @@ export default function AIImageRequestPage({
     if (!canSend) return;
 
     setIsSending(true);
-    setResultText("");
-    setError("");
+    setResultText('');
+    setError('');
     setCompressedBytes(0);
-    setStatus("Sending request to Gemini...");
+    setStatus('Sending request to Gemini...');
 
     try {
       const requestBody = {
         userId: user.id,
-        language: navigator.language || "English",
+        language: navigator.language || 'English',
         ...(imageDataUrl ? { imageBase64: imageDataUrl } : {}),
         ...(sharedLocation || {}),
         ...(userPrompt.trim() ? { userPrompt: userPrompt.trim() } : {}),
       };
 
       const response = await fetch(`${API_BASE_URL}/api/v1/images`, {
-        method: "POST",
+        method: 'POST',
         headers: {
-          "Content-Type": "application/json",
+          'Content-Type': 'application/json',
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         body: JSON.stringify(requestBody),
       });
 
       if (!response.ok) {
-        const bodyText = await response.text().catch(() => "");
-        throw new Error(bodyText || "Image request failed");
+        const bodyText = await response.text().catch(() => '');
+        throw new Error(bodyText || 'Image request failed');
       }
 
       if (!response.body) {
-        throw new Error("No response stream received from backend");
+        throw new Error('No response stream received from backend');
       }
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
-      let buffer = "";
+      let buffer = '';
       let done = false;
 
       while (!done) {
@@ -389,17 +388,17 @@ export default function AIImageRequestPage({
           stream: !chunk.done,
         });
 
-        let boundary = buffer.indexOf("\n\n");
+        let boundary = buffer.indexOf('\n\n');
         while (boundary !== -1) {
           const rawEvent = buffer.slice(0, boundary);
           buffer = buffer.slice(boundary + 2);
-          boundary = buffer.indexOf("\n\n");
+          boundary = buffer.indexOf('\n\n');
 
           const dataPayload = rawEvent
-            .split("\n")
-            .filter((line) => line.startsWith("data:"))
+            .split('\n')
+            .filter((line) => line.startsWith('data:'))
             .map((line) => line.slice(5).trim())
-            .join("\n");
+            .join('\n');
 
           if (!dataPayload) continue;
 
@@ -410,24 +409,24 @@ export default function AIImageRequestPage({
             continue;
           }
 
-          if (event.type === "delta" && event.text) {
+          if (event.type === 'delta' && event.text) {
             setResultText((prev) => prev + event.text);
-          } else if (event.type === "image") {
+          } else if (event.type === 'image') {
             setCompressedBytes(Number(event.compressedBytes || 0));
-          } else if (event.type === "stream_start") {
-            setStatus("AI is generating...");
-          } else if (event.type === "complete") {
-            setStatus("Generation complete.");
-          } else if (event.type === "history_saved") {
-            setStatus("Done and saved to history.");
-          } else if (event.type === "error") {
-            throw new Error(event.message || "Backend stream error");
+          } else if (event.type === 'stream_start') {
+            setStatus('AI is generating...');
+          } else if (event.type === 'complete') {
+            setStatus('Generation complete.');
+          } else if (event.type === 'history_saved') {
+            setStatus('Done and saved to history.');
+          } else if (event.type === 'error') {
+            throw new Error(event.message || 'Backend stream error');
           }
         }
       }
     } catch (requestError) {
-      setError(requestError.message || "Failed to generate result");
-      setStatus("Request failed.");
+      setError(requestError.message || 'Failed to generate result');
+      setStatus('Request failed.');
     } finally {
       setIsSending(false);
     }
@@ -445,7 +444,7 @@ export default function AIImageRequestPage({
               title="Live Travel AI"
               subtitle="Real-time help from image, location, and prompt."
               right={
-                <div className="flex items-center gap-2">
+                <>
                   <button
                     type="button"
                     onClick={onGoTripResponse}
@@ -462,7 +461,7 @@ export default function AIImageRequestPage({
                     <ArrowLeft className="h-3.5 w-3.5" />
                     Planner
                   </button>
-                </div>
+                </>
               }
             />
 
@@ -570,18 +569,18 @@ export default function AIImageRequestPage({
                     onClick={shareLocation}
                     disabled={isSharingLocation}
                     className={[
-                      "inline-flex items-center gap-2 rounded-full border px-3.5 py-2 text-xs font-semibold transition",
+                      'inline-flex items-center gap-2 rounded-full border px-3.5 py-2 text-xs font-semibold transition',
                       isSharingLocation
-                        ? "cursor-not-allowed border-[#d9ccb8] bg-[#f2e7d5] text-[#9a8f80]"
-                        : "border-[var(--line)] bg-white text-[#2f4954] hover:border-[var(--line-strong)] hover:bg-[#fff8eb]",
-                    ].join(" ")}
+                        ? 'cursor-not-allowed border-[#d9ccb8] bg-[#f2e7d5] text-[#9a8f80]'
+                        : 'border-[var(--line)] bg-white text-[#2f4954] hover:border-[var(--line-strong)] hover:bg-[#fff8eb]',
+                    ].join(' ')}
                   >
                     {isSharingLocation ? (
                       <Loader2 className="h-3.5 w-3.5 animate-spin" />
                     ) : (
                       <MapPin className="h-3.5 w-3.5" />
                     )}
-                    {isSharingLocation ? "Sharing..." : "Share Location"}
+                    {isSharingLocation ? 'Sharing...' : 'Share Location'}
                   </button>
                 </div>
               </div>
@@ -590,7 +589,7 @@ export default function AIImageRequestPage({
                 {previewLabel}
                 {compressedBytes > 0
                   ? ` • compressed ${formatBytes(compressedBytes)}`
-                  : ""}
+                  : ''}
               </div>
 
               <button
@@ -598,11 +597,11 @@ export default function AIImageRequestPage({
                 onClick={sendImage}
                 disabled={!canSend}
                 className={[
-                  "inline-flex w-full items-center justify-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold transition",
+                  'inline-flex w-full items-center justify-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold transition',
                   canSend
-                    ? "bg-gradient-to-r from-[#0d6a66] to-[#084744] text-white shadow-[0_12px_28px_rgba(12,95,92,0.30)] hover:brightness-105"
-                    : "cursor-not-allowed bg-[#ccd6d9] text-white",
-                ].join(" ")}
+                    ? 'bg-gradient-to-r from-[#0d6a66] to-[#084744] text-white shadow-[0_12px_28px_rgba(12,95,92,0.30)] hover:brightness-105'
+                    : 'cursor-not-allowed bg-[#ccd6d9] text-white',
+                ].join(' ')}
               >
                 {isSending ? (
                   <>
@@ -642,8 +641,8 @@ export default function AIImageRequestPage({
               ) : (
                 <div className="flex min-h-[420px] items-center justify-center text-center text-[13px] text-[#6a7b84]">
                   {isSending
-                    ? "Streaming AI response..."
-                    : "No live response yet. Send location, image, or prompt."}
+                    ? 'Streaming AI response...'
+                    : 'No live response yet. Send location, image, or prompt.'}
                 </div>
               )}
             </div>
