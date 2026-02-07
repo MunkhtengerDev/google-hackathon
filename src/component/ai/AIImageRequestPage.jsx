@@ -14,6 +14,7 @@ import {
   UploadCloud,
 } from "lucide-react";
 import { Card, ControlShell, SectionHeader } from "../../ui/primitives";
+import ResponsePlan from "../responsePlan/ResponsePlan";
 
 const API_BASE_URL = (
   import.meta.env.VITE_API_BASE_URL || "http://localhost:9008"
@@ -942,6 +943,7 @@ export default function AIImageRequestPage({
           </Card>
         </section>
       </div>
+      <ResponsePlan responseText={resultText} />
     </main>
   );
 }
