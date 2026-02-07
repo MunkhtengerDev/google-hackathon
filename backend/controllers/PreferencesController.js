@@ -40,19 +40,26 @@ exports.savePreferences = async (req, res) => {
       interests,
       mobilityPreference,
       foodPreferences,
+      questionnaire,
     } = req.body;
+
+    const updateDoc = { userId: decoded.id };
+
+    if (travelStyle !== undefined) updateDoc.travelStyle = travelStyle;
+    if (budgetLevel !== undefined) updateDoc.budgetLevel = budgetLevel;
+    if (interests !== undefined) updateDoc.interests = interests;
+    if (mobilityPreference !== undefined) {
+      updateDoc.mobilityPreference = mobilityPreference;
+    }
+    if (foodPreferences !== undefined) updateDoc.foodPreferences = foodPreferences;
+    if (questionnaire && typeof questionnaire === "object") {
+      updateDoc.questionnaire = questionnaire;
+    }
 
     const preferences = await TravelPreference.findOneAndUpdate(
       { userId: decoded.id },
-      {
-        userId: decoded.id,
-        travelStyle,
-        budgetLevel,
-        interests,
-        mobilityPreference,
-        foodPreferences,
-      },
-      { upsert: true, new: true, runValidators: true }
+      { $set: updateDoc },
+      { upsert: true, new: true, runValidators: true, setDefaultsOnInsert: true }
     );
 
     return res.status(200).json({
@@ -84,6 +91,12 @@ exports.updatePreference = async (req, res) => {
       "interests",
       "mobilityPreference",
       "foodPreferences",
+      "questionnaire",
+      "questionnaire.tripStatus",
+      "questionnaire.context",
+      "questionnaire.destination",
+      "questionnaire.dates",
+      "questionnaire.budget",
     ];
 
     if (!allowedFields.includes(field)) {

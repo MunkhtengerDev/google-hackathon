@@ -1,23 +1,57 @@
 import React, { useMemo } from "react";
 import { Calendar as CalendarIcon, ExternalLink } from "lucide-react";
 
-function toYMD(dateStr) {
-  // expects YYYY-MM-DD
-  return (dateStr || "").replaceAll("-", "");
+function toDateValue(input) {
+  if (!input) return null;
+
+  if (input instanceof Date) {
+    return Number.isNaN(input.getTime()) ? null : input;
+  }
+
+  if (typeof input === "number") {
+    const date = new Date(input);
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+
+  if (typeof input === "string") {
+    const trimmed = input.trim();
+    if (!trimmed) return null;
+
+    // For `YYYY-MM-DD` we force local midnight to avoid timezone drift.
+    const localIsoMatch = /^\d{4}-\d{2}-\d{2}$/.test(trimmed);
+    const date = localIsoMatch ? new Date(`${trimmed}T00:00:00`) : new Date(trimmed);
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+
+  return null;
+}
+
+function toYMD(input) {
+  const date = toDateValue(input);
+  if (!date) return null;
+
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}${month}${day}`;
 }
 
 export default function CalendarVisualizer({ startDate, endDate, title = "Trip", details = "", location = "" }) {
   const link = useMemo(() => {
-    if (!startDate) return null;
+    const start = toDateValue(startDate);
+    if (!start) return null;
 
-    const end = endDate || startDate;
+    const endBase = toDateValue(endDate) || start;
 
     // For all-day events, Google end date is exclusive → +1 day
-    const endObj = new Date(end);
+    const endObj = new Date(endBase);
     endObj.setDate(endObj.getDate() + 1);
-    const endExclusive = endObj.toISOString().slice(0, 10);
 
-    const dates = `${toYMD(startDate)}/${toYMD(endExclusive)}`;
+    const startYMD = toYMD(start);
+    const endYMD = toYMD(endObj);
+    if (!startYMD || !endYMD) return null;
+
+    const dates = `${startYMD}/${endYMD}`;
 
     const url = new URL("https://calendar.google.com/calendar/render");
     url.searchParams.set("action", "TEMPLATE");

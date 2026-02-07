@@ -46,7 +46,11 @@ body,
 body {
   min-width: 320px;
   color: var(--ink);
-  background: radial-gradient(1300px 680px at 4% -12%, #f6cf8f77 0%, transparent 52%),
+  background: radial-gradient(
+      1300px 680px at 4% -12%,
+      #f6cf8f77 0%,
+      transparent 52%
+    ),
     radial-gradient(1200px 740px at 94% 4%, #91d2c95e 0%, transparent 54%),
     linear-gradient(180deg, var(--bg-main), var(--bg-alt));
 }
@@ -103,6 +107,35 @@ button {
 .font-display {
   font-family: var(--font-display);
   letter-spacing: -0.02em;
+}
+
+.react-datepicker {
+  font-family: inherit;
+  border: 1px solid #d9ccb7;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.react-datepicker__header {
+  background-color: #fff7e9;
+  border-bottom: 1px solid #d9ccb7;
+  border-radius: 12px 12px 0 0;
+}
+
+.react-datepicker__day--selected,
+.react-datepicker__month--selected {
+  background-color: #0c5f5c !important;
+  color: white !important;
+}
+
+.react-datepicker__day:hover,
+.react-datepicker__month:hover {
+  background-color: #e3d8c4;
+}
+
+.react-datepicker__day--keyboard-selected {
+  background-color: #0c5f5c;
+  color: white;
 }
 
 @keyframes rise-in {

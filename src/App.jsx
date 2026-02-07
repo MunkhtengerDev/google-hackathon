@@ -2,14 +2,17 @@ import React, { useState } from "react";
 import "./App.css";
 import SignInPage from "./component/auth/SignInPage";
 import TripOnboarding from "./component/tripForm/TripOnboarding";
+import AIImageRequestPage from "./component/ai/AIImageRequestPage";
 import { clearAuth, loadAuth, saveAuth } from "./lib/auth";
 
 function App() {
   const [auth, setAuth] = useState(() => loadAuth());
+  const [screen, setScreen] = useState("onboarding");
 
   const handleSignInSuccess = (session) => {
     saveAuth(session);
     setAuth(session);
+    setScreen("onboarding");
   };
 
   const handleSignOut = () => {
@@ -18,6 +21,7 @@ function App() {
     }
     clearAuth();
     setAuth(null);
+    setScreen("onboarding");
   };
 
   if (!auth?.token) {
@@ -43,7 +47,15 @@ function App() {
           </button>
         </div>
       </div>
-      <TripOnboarding token={auth.token} />
+      {screen === "onboarding" ? (
+        <TripOnboarding token={auth.token} onCompleted={() => setScreen("ai")} />
+      ) : (
+        <AIImageRequestPage
+          token={auth.token}
+          user={auth.user}
+          onBackToPlanner={() => setScreen("onboarding")}
+        />
+      )}
     </div>
   );
 }
