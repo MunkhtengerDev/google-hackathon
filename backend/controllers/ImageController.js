@@ -8,7 +8,8 @@ const TravelPreference = require("../models/TravelPreferences");
 // ---- Gemini ----
 const GEMINI_KEY = process.env.GEMINI_API_KEY;
 if (!GEMINI_KEY) console.warn("Warning: GEMINI_API_KEY not set");
-const GEMINI_MODEL = process.env.GEMINI_MODEL_STREAM || "gemini-3-flash-preview";
+const GEMINI_MODEL =
+  process.env.GEMINI_MODEL_STREAM || "gemini-3-flash-preview";
 const genAI = new GoogleGenAI({ apiKey: GEMINI_KEY });
 
 // ---- Image constraints ----
@@ -100,7 +101,6 @@ exports.fetchImageDataAndGenerateContentStream = async (req, res) => {
       return sseError(res, "Image too large after compression", 400);
     sseSend(res, { type: "image", compressedBytes: buffer.length });
 
-    // Image storage disabled (no Google Cloud). History will save without imageUrl.
     const imageUrl = null;
 
     // Build location context
