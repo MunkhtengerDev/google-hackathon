@@ -1,7 +1,7 @@
 // src/sections/PreferencesSection.jsx
 import React, { useState } from "react";
 import { Heart, Mountain, Castle, Compass, Sparkles, Star, Coffee, Camera } from "lucide-react";
-import { Card, SectionHeader, PillButton, Field, ControlShell } from "../../ui/primitives";
+import { Card, SectionHeader, PillButton, Field, ControlShell } from "../../../ui/primitives";
 
 const TAGS = [
   { id: "nature", label: "Nature", icon: Mountain },

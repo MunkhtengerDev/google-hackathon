@@ -1,21 +1,42 @@
-import React, { useEffect } from "react";
-import { Card } from "./primitives";
+import React, { useEffect, useState } from "react";
 
-export default function TransitionScreen({ title = "Got it.", subtitle, onDone, ms = 650 }) {
+const MESSAGES = [
+  "Nice start.",
+  "Great choice.",
+  "Noted.",
+  "Let's keep going.",
+  "Interesting...",
+  "Got it."
+];
+
+export default function TransitionScreen({ onDone, customMessage }) {
+  const [opacity, setOpacity] = useState(0);
+  const [message] = useState(() => customMessage || MESSAGES[Math.floor(Math.random() * MESSAGES.length)]);
+
   useEffect(() => {
-    const t = setTimeout(() => onDone?.(), ms);
+    // Fade in
+    requestAnimationFrame(() => setOpacity(1));
+    
+    // Wait, then trigger done
+    const t = setTimeout(() => {
+      setOpacity(0);
+      setTimeout(onDone, 300); // Wait for fade out
+    }, 1200); // Duration of message
+
     return () => clearTimeout(t);
-  }, [onDone, ms]);
+  }, [onDone]);
 
   return (
-    <Card className="flex items-center justify-between gap-6 bg-gradient-to-br from-[#fffdf9] via-[#fff8eb] to-[#f2e6cf]">
-      <div>
-        <div className="font-display text-[36px] leading-[0.95] text-[var(--ink)]">{title}</div>
-        {subtitle ? <div className="mt-1 text-[14px] text-[var(--ink-soft)]">{subtitle}</div> : null}
+    <div 
+      className="absolute inset-0 z-50 flex items-center justify-center bg-[#F7F7F7]"
+      style={{ opacity, transition: "opacity 300ms ease-in-out" }}
+    >
+      <div className="text-center">
+        <h2 className="font-serif text-[40px] text-[#222] mb-2 transform translate-y-0 animate-pulse">
+            {message}
+        </h2>
+        <div className="h-1 w-16 bg-[#FF385C] mx-auto rounded-full" />
       </div>
-      <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[#0c5f5c12]">
-        <div className="h-2.5 w-2.5 rounded-full bg-[#0c5f5c] animate-pulse" />
-      </div>
-    </Card>
+    </div>
   );
 }

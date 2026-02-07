@@ -1,19 +1,36 @@
 import React, { useMemo, useState } from "react";
-import { ArrowLeft, ArrowRight } from "lucide-react";
+import { ArrowLeft, ArrowRight, Loader2 } from "lucide-react";
+
+// UI Wrappers
 import PlannerShell from "../../ui/PlannerShell.jsx";
 import TransitionScreen from "../../ui/TransitionScreen.jsx";
 
+// Sections (Existing)
 import TripStatusSection from "./sections/TripStatusSection.jsx";
 import HomeContextSection from "./sections/HomeContextSection.jsx";
 import DestinationSection from "./sections/DestinationSection.jsx";
 import SeasonSection from "./sections/SeasonSection.jsx";
 import BudgetSection from "./sections/BudgetSection.jsx";
 
+// Sections (NEW)
+import FoodSection from "./sections/FoodSection.jsx";
+import MobilitySection from "./sections/MobilitySection.jsx";
+import TravelStyleSection from "./sections/TravelStyleSection.jsx";
+import GroupSection from "./sections/GroupSection.jsx";
+import AccommodationSection from "./sections/AccommodationSection.jsx";
+import ExperienceGoalsSection from "./sections/ExperienceGoalsSection.jsx";
+import PermissionsSection from "./sections/PermissionsSection.jsx";
+
+// Visualizers
 import MapVisualizer from "./visualizers/MapVisualizer.jsx";
 import CalendarVisualizer from "./visualizers/CalendarVisualizer.jsx";
 import SummaryVisualizer from "./visualizers/SummaryVisualizer.jsx";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL.replace(/\/$/, "");
+const API_BASE_URL = (
+  import.meta.env.VITE_API_BASE_URL || "http://localhost:9008"
+).replace(/\/$/, "");
+
+// --- 1. Constants & Helpers ---
 
 const ALLOWED_INTERESTS = new Set([
   "history",
@@ -26,37 +43,8 @@ const ALLOWED_INTERESTS = new Set([
   "shopping",
 ]);
 
-function defaultState() {
-  return {
-    tripStatus: "",
-    context: {
-      homeCountry: "",
-      departureCity: "",
-      currency: "USD",
-    },
-    destination: {
-      countries: [],
-      cities: [],
-      regions: [],
-      flexibility: "fixed",
-    },
-    dates: {
-      start: "",
-      end: "",
-      durationDays: 7,
-      timingPriority: [],
-      seasonPref: "no_preference",
-    },
-    budget: {
-      currency: "USD",
-      usdBudget: 0,
-      priority: "balance",
-      spendingStyle: "track",
-    },
-  };
-}
-
-const STEPS = [
+// Definition of ALL possible steps
+const ALL_STEPS = [
   {
     key: "status",
     title: "Define Your Journey Type",
@@ -87,112 +75,210 @@ const STEPS = [
     subtitle: "Set cost priorities so the plan fits your travel style.",
     visual: "summary",
   },
+  // --- New Core Steps ---
+  {
+    key: "food",
+    title: "Food Preferences",
+    subtitle: "Tell us what you want to eat (or avoid) for better recommendations.",
+    visual: "summary",
+  },
+  {
+    key: "mobility",
+    title: "Mobility & Movement",
+    subtitle: "Optimize routes and hotel placement based on your comfort range.",
+    visual: "map",
+  },
+  {
+    key: "style",
+    title: "Travel Style & Interests",
+    subtitle: "Pick interests and describe your taste for deeper personalization.",
+    visual: "summary",
+  },
+  // --- Booked Only Steps ---
+  {
+    key: "group",
+    title: "Group Composition",
+    subtitle: "Right pacing and filters for families, couples, and groups.",
+    visual: "summary",
+    condition: (data) => data.tripStatus === "booked",
+  },
+  {
+    key: "accommodation",
+    title: "Accommodation Status",
+    subtitle: "Map-centric planning works best when we know where you’ll stay.",
+    visual: "map",
+    condition: (data) => data.tripStatus === "booked",
+  },
+  {
+    key: "goals",
+    title: "Experience Goals",
+    subtitle: "This becomes the narrative anchor for the itinerary.",
+    visual: "summary",
+    condition: (data) => data.tripStatus === "booked",
+  },
+  // --- Permissions ---
+  {
+    key: "permissions",
+    title: "AI Permissions",
+    subtitle: "Control how the AI can optimize and remember your preferences.",
+    visual: "summary",
+  },
 ];
+
+function defaultState() {
+  return {
+    tripStatus: "", // "planning" | "booked"
+    context: {
+      homeCountry: "",
+      departureCity: "",
+      currency: "USD",
+      nearbyAirports: false,
+      departureAirportCode: "",
+    },
+    destination: {
+      countries: [],
+      cities: [],
+      regions: [],
+      continents: [],
+      flexibility: "fixed",
+      dayTripsPlanned: false,
+    },
+    dates: {
+      start: "",
+      end: "",
+      earliestStart: "",
+      latestStart: "",
+      durationDays: 7,
+      durationRange: { min: "", max: "" },
+      canChangeDates: "no",
+      timingPriority: [],
+      seasonPref: "no_preference",
+    },
+    budget: {
+      currency: "USD",
+      usdBudget: 0,
+      budgetType: "total",
+      savedAmountUsd: 0,
+      isFlexible: true,
+      priority: "balance",
+      spendingStyle: "track",
+      emergencyBufferUsd: 0,
+    },
+    food: {
+      diet: [],
+      importance: "nice",
+      notes: "",
+    },
+    mobility: {
+      preferredTransport: [],
+      comfortRange: "30",
+      notes: "",
+    },
+    style: {
+      interests: [],
+      tasteText: "",
+      travelPace: "balanced",
+      hates: [],
+      pastLoved: [],
+    },
+    group: {
+      who: "solo",
+      adults: 1,
+      childrenAges: [],
+      totalPeople: 1,
+    },
+    accommodation: {
+      status: "not_booked",
+      type: "",
+      preference: [],
+    },
+    goals: {
+      experienceGoals: [],
+      oneSentenceGoal: "",
+    },
+    permissions: {
+      allowAltDestinations: true,
+      allowBudgetOptimize: true,
+      allowDailyAdjust: false,
+      allowSaveForFuture: true,
+    },
+  };
+}
 
 function mergePlannerData(base, loaded) {
   if (!loaded || typeof loaded !== "object") return base;
-
+  // Deep merge for all sections
   return {
     ...base,
     ...loaded,
-    context: {
-      ...base.context,
-      ...(loaded.context || {}),
-    },
-    destination: {
-      ...base.destination,
-      ...(loaded.destination || {}),
-    },
-    dates: {
-      ...base.dates,
-      ...(loaded.dates || {}),
-    },
-    budget: {
-      ...base.budget,
-      ...(loaded.budget || {}),
-    },
+    context: { ...base.context, ...(loaded.context || {}) },
+    destination: { ...base.destination, ...(loaded.destination || {}) },
+    dates: { ...base.dates, ...(loaded.dates || {}) },
+    budget: { ...base.budget, ...(loaded.budget || {}) },
+    food: { ...base.food, ...(loaded.food || {}) },
+    mobility: { ...base.mobility, ...(loaded.mobility || {}) },
+    style: { ...base.style, ...(loaded.style || {}) },
+    group: { ...base.group, ...(loaded.group || {}) },
+    accommodation: { ...base.accommodation, ...(loaded.accommodation || {}) },
+    goals: { ...base.goals, ...(loaded.goals || {}) },
+    permissions: { ...base.permissions, ...(loaded.permissions || {}) },
   };
 }
 
 function isStepComplete(stepKey, data) {
-  if (stepKey === "status") {
-    return Boolean(data.tripStatus);
+  switch (stepKey) {
+    case "status":
+      return Boolean(data.tripStatus);
+    case "context":
+      return (
+        Boolean(data.context.homeCountry?.trim()) &&
+        Boolean(data.context.departureCity?.trim())
+      );
+    case "destination":
+      return (
+        (data.destination.countries?.length || 0) +
+          (data.destination.cities?.length || 0) +
+          (data.destination.regions?.length || 0) > 0
+      );
+    case "season":
+      if (data.tripStatus === "booked") {
+        return Boolean(data.dates.start) && Boolean(data.dates.end);
+      }
+      return Boolean(data.dates.start);
+    case "budget":
+      return (
+        Number(data.budget.usdBudget || 0) > 0 &&
+        Boolean(data.budget.currency?.trim())
+      );
+    case "food":
+      // require at least importance
+      return Boolean(data.food?.importance);
+    case "mobility":
+      // require at least one transport mode
+      return (data.mobility?.preferredTransport?.length || 0) > 0;
+    case "style":
+      // optional, but encourage interaction. Let's make it always valid.
+      return true;
+    case "group":
+      if (data.tripStatus !== "booked") return true;
+      return Boolean(data.group?.who);
+    case "accommodation":
+      if (data.tripStatus !== "booked") return true;
+      return Boolean(data.accommodation?.status);
+    case "goals":
+      if (data.tripStatus !== "booked") return true;
+      return (
+        (data.goals?.experienceGoals?.length || 0) > 0 ||
+        Boolean(data.goals?.oneSentenceGoal?.trim())
+      );
+    case "permissions":
+      return true;
+    default:
+      return true;
   }
-
-  if (stepKey === "context") {
-    return (
-      Boolean(data.context.homeCountry?.trim()) &&
-      Boolean(data.context.departureCity?.trim())
-    );
-  }
-
-  if (stepKey === "destination") {
-    return (
-      (data.destination.countries?.length || 0) +
-        (data.destination.cities?.length || 0) +
-        (data.destination.regions?.length || 0) >
-      0
-    );
-  }
-
-  if (stepKey === "season") {
-    if (data.tripStatus === "booked") {
-      return Boolean(data.dates.start) && Boolean(data.dates.end);
-    }
-    return Boolean(data.dates.start);
-  }
-
-  if (stepKey === "budget") {
-    return (
-      Number(data.budget.usdBudget || 0) > 0 &&
-      Boolean(data.budget.currency?.trim())
-    );
-  }
-
-  return true;
 }
 
-function mapBudgetLevel(usdBudget) {
-  const total = Number(usdBudget || 0);
-  if (total <= 1500) return "budget";
-  if (total <= 4000) return "mid-range";
-  return "luxury";
-}
-
-function mapTravelStyle(data) {
-  if (data.tripStatus === "booked") return "couple";
-  return "solo";
-}
-
-function mapInterests(data) {
-  const priorityMap = {
-    weather: "nature",
-    crowds: "relaxation",
-    price: "shopping",
-  };
-
-  const interests = (data.dates.timingPriority || [])
-    .map((item) => priorityMap[item])
-    .filter(Boolean);
-
-  if (data.tripStatus === "booked") interests.push("adventure");
-  if (Number(data.budget.usdBudget || 0) >= 3500) interests.push("art");
-
-  const unique = Array.from(new Set(interests)).filter((item) =>
-    ALLOWED_INTERESTS.has(item)
-  );
-
-  return unique.length ? unique : ["nature"];
-}
-
-function mapMobilityPreference(data) {
-  const destinationSpread =
-    (data.destination.cities?.length || 0) +
-    (data.destination.regions?.length || 0);
-
-  if (destinationSpread >= 2) return "transport";
-  return "walking";
-}
+// --- Payload Construction ---
 
 function normalizeText(value) {
   return typeof value === "string" ? value.trim() : "";
@@ -205,18 +291,23 @@ function normalizeStringArray(values) {
 }
 
 function buildPreferencesPayload(data) {
+  // Construct the main JSON structure
   const questionnaire = {
     tripStatus: normalizeText(data.tripStatus),
     context: {
       homeCountry: normalizeText(data.context?.homeCountry),
       departureCity: normalizeText(data.context?.departureCity),
       currency: normalizeText(data.context?.currency) || "USD",
+      nearbyAirports: Boolean(data.context?.nearbyAirports),
+      departureAirportCode: normalizeText(data.context?.departureAirportCode),
     },
     destination: {
       countries: normalizeStringArray(data.destination?.countries),
       cities: normalizeStringArray(data.destination?.cities),
       regions: normalizeStringArray(data.destination?.regions),
+      continents: normalizeStringArray(data.destination?.continents),
       flexibility: normalizeText(data.destination?.flexibility) || "fixed",
+      dayTripsPlanned: Boolean(data.destination?.dayTripsPlanned),
     },
     dates: {
       start: normalizeText(data.dates?.start),
@@ -224,133 +315,140 @@ function buildPreferencesPayload(data) {
       durationDays: Number(data.dates?.durationDays || 7),
       timingPriority: normalizeStringArray(data.dates?.timingPriority),
       seasonPref: normalizeText(data.dates?.seasonPref) || "no_preference",
+      canChangeDates: normalizeText(data.dates?.canChangeDates) || "no",
     },
     budget: {
       currency: normalizeText(data.budget?.currency) || "USD",
       usdBudget: Number(data.budget?.usdBudget || 0),
       priority: normalizeText(data.budget?.priority) || "balance",
       spendingStyle: normalizeText(data.budget?.spendingStyle) || "track",
+      budgetType: normalizeText(data.budget?.budgetType) || "total",
+    },
+    food: {
+      diet: normalizeStringArray(data.food?.diet),
+      importance: normalizeText(data.food?.importance) || "nice",
+      notes: normalizeText(data.food?.notes),
+    },
+    mobility: {
+      preferredTransport: normalizeStringArray(data.mobility?.preferredTransport),
+      comfortRange: normalizeText(data.mobility?.comfortRange) || "30",
+      notes: normalizeText(data.mobility?.notes),
+    },
+    style: {
+      interests: normalizeStringArray(data.style?.interests),
+      tasteText: normalizeText(data.style?.tasteText),
+      travelPace: normalizeText(data.style?.travelPace) || "balanced",
+      hates: normalizeStringArray(data.style?.hates),
+      pastLoved: Array.isArray(data.style?.pastLoved)
+        ? data.style.pastLoved
+        : [],
+    },
+    group: {
+      who: normalizeText(data.group?.who),
+      adults: Number(data.group?.adults || 0),
+      childrenAges: Array.isArray(data.group?.childrenAges)
+        ? data.group.childrenAges
+        : [],
+      totalPeople: Number(data.group?.totalPeople || 0),
+    },
+    accommodation: {
+      status: normalizeText(data.accommodation?.status),
+      type: normalizeText(data.accommodation?.type),
+      preference: normalizeStringArray(data.accommodation?.preference),
+    },
+    goals: {
+      experienceGoals: normalizeStringArray(data.goals?.experienceGoals),
+      oneSentenceGoal: normalizeText(data.goals?.oneSentenceGoal),
+    },
+    permissions: {
+      allowAltDestinations: Boolean(data.permissions?.allowAltDestinations),
+      allowBudgetOptimize: Boolean(data.permissions?.allowBudgetOptimize),
+      allowDailyAdjust: Boolean(data.permissions?.allowDailyAdjust),
+      allowSaveForFuture: Boolean(data.permissions?.allowSaveForFuture),
     },
   };
 
-  questionnaire.askedQuestions = [
-    {
-      key: "tripStatus",
-      question: "Are you planning a trip or already booked?",
-      answer: questionnaire.tripStatus,
-    },
-    {
-      key: "context.homeCountry",
-      question: "What is your home country?",
-      answer: questionnaire.context.homeCountry,
-    },
-    {
-      key: "context.departureCity",
-      question: "What is your departure city?",
-      answer: questionnaire.context.departureCity,
-    },
-    {
-      key: "context.currency",
-      question: "What currency should be used?",
-      answer: questionnaire.context.currency,
-    },
-    {
-      key: "destination.countries",
-      question: "Which countries do you want to visit?",
-      answer: questionnaire.destination.countries,
-    },
-    {
-      key: "destination.cities",
-      question: "Which cities do you want to visit?",
-      answer: questionnaire.destination.cities,
-    },
-    {
-      key: "destination.regions",
-      question: "Which regions or areas do you want to visit?",
-      answer: questionnaire.destination.regions,
-    },
-    {
-      key: "dates.start",
-      question: "When do you want to start your trip?",
-      answer: questionnaire.dates.start,
-    },
-    {
-      key: "dates.end",
-      question: "When do you want to end your trip?",
-      answer: questionnaire.dates.end,
-    },
-    {
-      key: "dates.durationDays",
-      question: "How many days are you planning to travel?",
-      answer: questionnaire.dates.durationDays,
-    },
-    {
-      key: "dates.timingPriority",
-      question: "What matters most for timing?",
-      answer: questionnaire.dates.timingPriority,
-    },
-    {
-      key: "budget.usdBudget",
-      question: "What is your total trip budget in USD?",
-      answer: questionnaire.budget.usdBudget,
-    },
-    {
-      key: "budget.currency",
-      question: "What currency should be shown for budget?",
-      answer: questionnaire.budget.currency,
-    },
-    {
-      key: "budget.priority",
-      question: "What is your budget priority?",
-      answer: questionnaire.budget.priority,
-    },
-    {
-      key: "budget.spendingStyle",
-      question: "What is your spending style?",
-      answer: questionnaire.budget.spendingStyle,
-    },
+  // Construct flat question/answer list for AI context
+  const askedQuestions = [
+    { key: "tripStatus", question: "Status", answer: questionnaire.tripStatus },
+    { key: "context.home", question: "Home", answer: questionnaire.context.homeCountry },
+    { key: "destination", question: "Places", answer: questionnaire.destination.countries },
+    { key: "budget.total", question: "Budget", answer: questionnaire.budget.usdBudget },
+    { key: "food.importance", question: "Food Priority", answer: questionnaire.food.importance },
+    { key: "mobility.transport", question: "Transport", answer: questionnaire.mobility.preferredTransport },
+    { key: "style.interests", question: "Interests", answer: questionnaire.style.interests },
+    { key: "permissions.save", question: "Save Data", answer: questionnaire.permissions.allowSaveForFuture },
   ];
 
-  questionnaire.rawAnswers = data;
-
-  const mappedData = {
-    ...data,
-    tripStatus: questionnaire.tripStatus,
-    destination: questionnaire.destination,
-    dates: questionnaire.dates,
-    budget: questionnaire.budget,
-  };
+  if (questionnaire.tripStatus === "booked") {
+    askedQuestions.push(
+      { key: "group.who", question: "Group", answer: questionnaire.group.who },
+      { key: "accommodation.status", question: "Hotel Status", answer: questionnaire.accommodation.status },
+      { key: "goals.sentence", question: "Goal", answer: questionnaire.goals.oneSentenceGoal }
+    );
+  }
 
   return {
-    travelStyle: mapTravelStyle(mappedData),
+    // Derived high-level tags for easy filtering
+    travelStyle: data.tripStatus === "booked" ? "couple" : "solo",
     budgetLevel: mapBudgetLevel(questionnaire.budget.usdBudget),
-    interests: mapInterests(mappedData),
-    mobilityPreference: mapMobilityPreference(mappedData),
-    foodPreferences: ["no-restrictions"],
-    questionnaire,
+    interests: normalizeStringArray(data.style?.interests),
+    mobilityPreference:
+      (data.destination.cities?.length || 0) > 1 ? "transport" : "walking",
+    foodPreferences: normalizeStringArray(data.food?.diet),
+    
+    // The full detailed object
+    questionnaire: {
+      ...questionnaire,
+      askedQuestions,
+      rawAnswers: data,
+    },
   };
 }
+
+function mapBudgetLevel(usdBudget) {
+  const total = Number(usdBudget || 0);
+  if (total <= 1500) return "budget";
+  if (total <= 4000) return "mid-range";
+  return "luxury";
+}
+
+// --- 2. Main Component ---
 
 export default function TripOnboarding({ token, onCompleted, initialData }) {
   const mapsApiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 
+  // State
   const [data, setData] = useState(() =>
     mergePlannerData(defaultState(), initialData)
   );
   const [step, setStep] = useState(0);
   const [rightQuery, setRightQuery] = useState("");
-  const [showTransition, setShowTransition] = useState(false);
+  
+  // Transitions
+  const [isTransitioning, setIsTransitioning] = useState(false);
+  const [transitionMsg, setTransitionMsg] = useState("");
+
+  // Saving/API
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
-  const [saveSuccess, setSaveSuccess] = useState("");
-  const [shouldNavigateAfterSave, setShouldNavigateAfterSave] = useState(false);
-  const [generatedTripPlan, setGeneratedTripPlan] = useState("");
 
-  const stepConfig = STEPS[step];
-  const isLastStep = step === STEPS.length - 1;
-  const canContinue = isStepComplete(stepConfig.key, data);
+  // Filter Steps based on Trip Status (Planning vs Booked)
+  const visibleSteps = useMemo(() => {
+    return ALL_STEPS.filter((s) => {
+      if (!s.condition) return true;
+      return s.condition(data);
+    });
+  }, [data.tripStatus]);
 
+  const stepConfig = visibleSteps[step];
+  const stepsCount = visibleSteps.length;
+  const isLastStep = step === stepsCount - 1;
+  const canContinue = isStepComplete(stepConfig?.key, data);
+
+  // Map Logic
   const defaultMapQuery = useMemo(() => {
+    if (!stepConfig) return "World";
     if (stepConfig.key === "context") {
       return (
         [data.context.departureCity, data.context.homeCountry]
@@ -358,7 +456,7 @@ export default function TripOnboarding({ token, onCompleted, initialData }) {
           .join(", ") || "World"
       );
     }
-    if (stepConfig.key === "destination") {
+    if (stepConfig.key === "destination" || stepConfig.key === "mobility") {
       const last =
         data.destination.cities?.slice(-1)[0] ||
         data.destination.regions?.slice(-1)[0] ||
@@ -366,7 +464,7 @@ export default function TripOnboarding({ token, onCompleted, initialData }) {
       return last || "World";
     }
     return "World";
-  }, [stepConfig.key, data.context, data.destination]);
+  }, [stepConfig, data.context, data.destination]);
 
   const markers = useMemo(() => {
     const list = [
@@ -377,14 +475,19 @@ export default function TripOnboarding({ token, onCompleted, initialData }) {
     return Array.from(new Set(list)).slice(0, 12);
   }, [data.destination]);
 
+  // Visualizer Switcher
   const rightContent = useMemo(() => {
+    if (!stepConfig) return null;
+
     if (stepConfig.visual === "map") {
       const query = rightQuery?.trim() ? rightQuery.trim() : defaultMapQuery;
       return (
         <MapVisualizer
           apiKey={mapsApiKey}
           query={query}
-          label={stepConfig.key === "context" ? "Home Base" : "Destination"}
+          label={
+            stepConfig.key === "context" ? "Home Base" : "Destination Preview"
+          }
           markers={markers}
         />
       );
@@ -394,17 +497,13 @@ export default function TripOnboarding({ token, onCompleted, initialData }) {
       const location =
         data.destination.cities?.[0] ||
         data.destination.countries?.[0] ||
-        data.destination.regions?.[0] ||
-        [data.context.departureCity, data.context.homeCountry]
-          .filter(Boolean)
-          .join(", ");
+        "Trip";
 
       return (
         <CalendarVisualizer
           startDate={data.dates.start}
           endDate={data.dates.end}
-          title="Trip"
-          details="Created by Trip Planner"
+          title="Trip Plan"
           location={location}
         />
       );
@@ -412,8 +511,7 @@ export default function TripOnboarding({ token, onCompleted, initialData }) {
 
     return <SummaryVisualizer data={data} />;
   }, [
-    stepConfig.visual,
-    stepConfig.key,
+    stepConfig,
     rightQuery,
     defaultMapQuery,
     mapsApiKey,
@@ -421,15 +519,21 @@ export default function TripOnboarding({ token, onCompleted, initialData }) {
     data,
   ]);
 
-  const resetAll = () => {
-    setData(defaultState());
-    setStep(0);
-    setRightQuery("");
-    setShowTransition(false);
-    setSaveError("");
-    setSaveSuccess("");
-    setShouldNavigateAfterSave(false);
-    setGeneratedTripPlan("");
+  // --- Handlers ---
+
+  const handleStartOver = () => {
+    if (
+      window.confirm(
+        "Are you sure you want to start over? Your progress will be lost."
+      )
+    ) {
+      setData(mergePlannerData(defaultState(), initialData));
+      setStep(0);
+      setRightQuery("");
+      setSaveError("");
+      setIsTransitioning(false);
+      setTransitionMsg("");
+    }
   };
 
   const saveTravelPreferences = async () => {
@@ -440,11 +544,11 @@ export default function TripOnboarding({ token, onCompleted, initialData }) {
 
     setIsSaving(true);
     setSaveError("");
-    setSaveSuccess("");
 
     try {
       const preferencesPayload = buildPreferencesPayload(data);
 
+      // 1. Save Preferences
       const response = await fetch(`${API_BASE_URL}/api/v1/preferences`, {
         method: "POST",
         headers: {
@@ -454,11 +558,9 @@ export default function TripOnboarding({ token, onCompleted, initialData }) {
         body: JSON.stringify(preferencesPayload),
       });
 
-      const payload = await response.json().catch(() => null);
-      if (!response.ok) {
-        throw new Error(payload?.message || "Failed to save preferences");
-      }
+      if (!response.ok) throw new Error("Failed to save preferences");
 
+      // 2. Generate Trip Plan
       const planningResponse = await fetch(
         `${API_BASE_URL}/api/v1/trip-planning/generate`,
         {
@@ -470,197 +572,216 @@ export default function TripOnboarding({ token, onCompleted, initialData }) {
         }
       );
 
-      const planningPayload = await planningResponse.json().catch(() => null);
+      const planningPayload = await planningResponse.json();
       if (!planningResponse.ok) {
-        throw new Error(
-          planningPayload?.message ||
-            "Preferences saved, but trip plan generation failed"
-        );
+        throw new Error("Preferences saved, but generation failed");
       }
 
-      const planText = planningPayload?.data?.plan;
-      if (!planText || typeof planText !== "string") {
-        throw new Error("Trip plan generated but response payload was invalid");
-      }
-
-      setGeneratedTripPlan(planText);
-      setSaveSuccess("Travel preferences saved and trip plan generated.");
-      setShouldNavigateAfterSave(true);
-      setShowTransition(true);
+      onCompleted?.({
+        plannerData: mergePlannerData(defaultState(), data),
+        tripPlan: planningPayload?.data?.plan,
+      });
     } catch (error) {
       setSaveError(error.message || "Unable to save preferences");
-      setShouldNavigateAfterSave(false);
-      setGeneratedTripPlan("");
-    } finally {
       setIsSaving(false);
     }
   };
 
-  const goNext = async () => {
+  const handleNext = async () => {
     if (!canContinue || isSaving) return;
-
     setSaveError("");
 
     if (isLastStep) {
+      setTransitionMsg("Building your dream itinerary...");
+      setIsTransitioning(true);
       await saveTravelPreferences();
       return;
     }
 
-    setShowTransition(true);
+    // Witty messages based on current step key
+    const key = stepConfig?.key;
+    let msg = "Got it.";
+    if (key === "status") msg = "Great start.";
+    if (key === "destination") msg = "Excellent choice.";
+    if (key === "food") msg = "Yum.";
+    if (key === "style") msg = "Noted.";
+    if (key === "budget") msg = "Crunching the numbers...";
+
+    setTransitionMsg(msg);
+    setIsTransitioning(true);
   };
 
-  const finishTransition = () => {
-    if (isLastStep) {
-      setShowTransition(false);
-      if (shouldNavigateAfterSave) {
-        setShouldNavigateAfterSave(false);
-        onCompleted?.({
-          plannerData: mergePlannerData(defaultState(), data),
-          tripPlan: generatedTripPlan,
-        });
-      }
-      return;
-    }
-
-    setShowTransition(false);
-    setStep((s) => Math.min(STEPS.length - 1, s + 1));
-    setRightQuery("");
-  };
-
-  const goBack = () => {
+  const handleTransitionDone = () => {
     if (isSaving) return;
-    setSaveError("");
-    setStep((s) => Math.max(0, s - 1));
+    setIsTransitioning(false);
+    setStep((s) => s + 1);
     setRightQuery("");
   };
+
+  const handleBack = () => {
+    if (isSaving || step === 0) return;
+    setStep((s) => s - 1);
+    setRightQuery("");
+  };
+
+  // --- Render ---
 
   return (
     <PlannerShell
       stepIndex={step}
-      stepsCount={STEPS.length}
-      title={stepConfig.title}
-      subtitle={stepConfig.subtitle}
+      stepsCount={stepsCount}
+      title={stepConfig?.title}
+      subtitle={stepConfig?.subtitle}
       rightContent={rightContent}
-      onReset={resetAll}
+      onReset={handleStartOver}
+      onBack={handleBack}
     >
-      {showTransition ? (
+      {/* 1. Interstitial Transition Overlay */}
+      {isTransitioning && (
         <TransitionScreen
-          title={isLastStep ? "Saved." : "Nice."}
-          subtitle={
-            isLastStep
-              ? "Travel preferences synced with backend. Opening AI assistant."
-              : "Moving to the next step."
-          }
-          onDone={finishTransition}
+          onDone={handleTransitionDone}
+          customMessage={transitionMsg}
+          persist={isLastStep && isSaving}
         />
-      ) : (
-        <>
-          {stepConfig.key === "status" ? (
-            <TripStatusSection
-              value={data.tripStatus}
-              onChange={(v) => setData((d) => ({ ...d, tripStatus: v }))}
-            />
-          ) : null}
-
-          {stepConfig.key === "context" ? (
-            <HomeContextSection
-              value={data.context}
-              onChange={(v) => setData((d) => ({ ...d, context: v }))}
-              mapsApiKey={mapsApiKey}
-              onFocusQuery={(q) => setRightQuery(q)}
-            />
-          ) : null}
-
-          {stepConfig.key === "destination" ? (
-            <DestinationSection
-              value={data.destination}
-              onChange={(v) => setData((d) => ({ ...d, destination: v }))}
-              mapsApiKey={mapsApiKey}
-              onFocusQuery={(q) => setRightQuery(q)}
-            />
-          ) : null}
-
-          {stepConfig.key === "season" ? (
-            <SeasonSection
-              tripStatus={data.tripStatus}
-              value={data.dates}
-              onChange={(v) => setData((d) => ({ ...d, dates: v }))}
-            />
-          ) : null}
-
-          {stepConfig.key === "budget" ? (
-            <BudgetSection
-              tripStatus={data.tripStatus}
-              value={data.budget}
-              onChange={(v) => setData((d) => ({ ...d, budget: v }))}
-            />
-          ) : null}
-
-          <div className="mt-8 flex items-center justify-between gap-3">
-            <button
-              onClick={goBack}
-              disabled={step === 0 || isSaving}
-              className={[
-                "inline-flex items-center gap-2 rounded-full border px-4 py-2 text-[13px] font-semibold transition",
-                step === 0 || isSaving
-                  ? "cursor-not-allowed border-[#dcd1bf] bg-[#f6f1e8] text-[#9aa8ae]"
-                  : "border-[var(--line)] bg-[var(--surface)] text-[#385360] hover:border-[var(--line-strong)] hover:bg-[#fff8eb]",
-              ].join(" ")}
-            >
-              <ArrowLeft className="h-3.5 w-3.5" />
-              Back
-            </button>
-
-            <div className="hidden items-center gap-1.5 md:flex">
-              {STEPS.map((item, idx) => (
-                <span
-                  key={item.key}
-                  className={[
-                    "h-1.5 rounded-full transition-all",
-                    idx <= step ? "w-7 bg-[#0d6a66]" : "w-3 bg-[#d9ccb8]",
-                  ].join(" ")}
-                />
-              ))}
-            </div>
-
-            <button
-              onClick={goNext}
-              disabled={!canContinue || isSaving}
-              className={[
-                "inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-[13px] font-semibold transition",
-                !canContinue || isSaving
-                  ? "cursor-not-allowed bg-[#ccd6d9] text-white"
-                  : "bg-gradient-to-r from-[#0d6a66] to-[#084744] text-white shadow-[0_10px_24px_rgba(12,95,92,0.30)] hover:brightness-105",
-              ].join(" ")}
-            >
-              {isLastStep
-                ? isSaving
-                  ? "Saving..."
-                  : "Save Preferences"
-                : "Continue"}
-              <ArrowRight className="h-3.5 w-3.5" />
-            </button>
-          </div>
-
-          {!canContinue ? (
-            <p className="mt-3 text-xs font-medium text-[#9a5c32]">
-              Fill required fields in this step to continue.
-            </p>
-          ) : null}
-
-          {saveError ? (
-            <p className="mt-3 text-xs font-medium text-[#8b3f2e]">
-              {saveError}
-            </p>
-          ) : null}
-
-          {saveSuccess && !showTransition ? (
-            <p className="mt-3 text-xs font-medium text-[#245f52]">
-              {saveSuccess}
-            </p>
-          ) : null}
-        </>
       )}
+
+      {/* 2. Main Form Content */}
+      <div
+        className={`transition-opacity duration-500 ease-in-out ${
+          isTransitioning ? "opacity-0" : "opacity-100"
+        }`}
+      >
+        {stepConfig?.key === "status" && (
+          <TripStatusSection
+            value={data.tripStatus}
+            onChange={(v) => setData((d) => ({ ...d, tripStatus: v }))}
+          />
+        )}
+
+        {stepConfig?.key === "context" && (
+          <HomeContextSection
+            value={data.context}
+            onChange={(v) => setData((d) => ({ ...d, context: v }))}
+            mapsApiKey={mapsApiKey}
+            onFocusQuery={(q) => setRightQuery(q)}
+          />
+        )}
+
+        {stepConfig?.key === "destination" && (
+          <DestinationSection
+            value={data.destination}
+            onChange={(v) => setData((d) => ({ ...d, destination: v }))}
+            mapsApiKey={mapsApiKey}
+            onFocusQuery={(q) => setRightQuery(q)}
+          />
+        )}
+
+        {stepConfig?.key === "season" && (
+          <SeasonSection
+            tripStatus={data.tripStatus}
+            value={data.dates}
+            onChange={(v) => setData((d) => ({ ...d, dates: v }))}
+          />
+        )}
+
+        {stepConfig?.key === "budget" && (
+          <BudgetSection
+            tripStatus={data.tripStatus}
+            value={data.budget}
+            onChange={(v) => setData((d) => ({ ...d, budget: v }))}
+          />
+        )}
+
+        {stepConfig?.key === "food" && (
+          <FoodSection
+            tripStatus={data.tripStatus}
+            value={data.food}
+            onChange={(v) => setData((d) => ({ ...d, food: v }))}
+          />
+        )}
+
+        {stepConfig?.key === "mobility" && (
+          <MobilitySection
+            tripStatus={data.tripStatus}
+            value={data.mobility}
+            onChange={(v) => setData((d) => ({ ...d, mobility: v }))}
+            mapsApiKey={mapsApiKey}
+            onFocusQuery={(q) => setRightQuery(q)}
+          />
+        )}
+
+        {stepConfig?.key === "style" && (
+          <TravelStyleSection
+            tripStatus={data.tripStatus}
+            value={data.style}
+            onChange={(v) => setData((d) => ({ ...d, style: v }))}
+          />
+        )}
+
+        {stepConfig?.key === "group" && (
+          <GroupSection
+            tripStatus={data.tripStatus}
+            value={data.group}
+            onChange={(v) => setData((d) => ({ ...d, group: v }))}
+          />
+        )}
+
+        {stepConfig?.key === "accommodation" && (
+          <AccommodationSection
+            tripStatus={data.tripStatus}
+            value={data.accommodation}
+            onChange={(v) => setData((d) => ({ ...d, accommodation: v }))}
+            mapsApiKey={mapsApiKey}
+            onFocusQuery={(q) => setRightQuery(q)}
+          />
+        )}
+
+        {stepConfig?.key === "goals" && (
+          <ExperienceGoalsSection
+            tripStatus={data.tripStatus}
+            value={data.goals}
+            onChange={(v) => setData((d) => ({ ...d, goals: v }))}
+          />
+        )}
+
+        {stepConfig?.key === "permissions" && (
+          <PermissionsSection
+            tripStatus={data.tripStatus}
+            value={data.permissions}
+            onChange={(v) => setData((d) => ({ ...d, permissions: v }))}
+          />
+        )}
+
+        {/* 3. Navigation Buttons */}
+        <div className="mt-12 flex items-center gap-4">
+          <button
+            onClick={handleNext}
+            disabled={!canContinue || isSaving}
+            className={`
+               h-14 px-8 rounded-full font-semibold text-lg flex items-center gap-3 transition-all duration-300
+               ${
+                 canContinue
+                   ? "bg-[#FF385C] text-white shadow-lg hover:scale-105 hover:shadow-xl"
+                   : "bg-gray-200 text-gray-400 cursor-not-allowed"
+               }
+             `}
+          >
+            {isLastStep ? "Generate Plan" : "Continue"}
+            {isSaving ? (
+              <Loader2 className="animate-spin w-5 h-5" />
+            ) : (
+              <ArrowRight size={20} />
+            )}
+          </button>
+        </div>
+
+        {/* 4. Feedback */}
+        {saveError && (
+          <p className="mt-4 text-sm font-medium text-[#c13515] bg-[#ffeae6] p-3 rounded-lg border border-[#ffaeb0]">
+            {saveError}
+          </p>
+        )}
+      </div>
     </PlannerShell>
   );
 }
