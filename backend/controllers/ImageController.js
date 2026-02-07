@@ -139,7 +139,9 @@ exports.fetchImageDataAndGenerateContentStream = async (req, res) => {
       typeof userPrompt === "string" ? userPrompt.trim() : "";
     const hasImageInput = Boolean(rawBase64);
     const hasLocationInput =
-      hasValue(address) || hasValue(locationLatitude) || hasValue(locationLongitude);
+      hasValue(address) ||
+      hasValue(locationLatitude) ||
+      hasValue(locationLongitude);
     const hasPromptInput = Boolean(sanitizedPrompt);
 
     if (!hasImageInput && !hasLocationInput && !hasPromptInput) {
@@ -216,21 +218,27 @@ exports.fetchImageDataAndGenerateContentStream = async (req, res) => {
     const locationParts = [];
     if (hasValue(address)) locationParts.push(`Address: ${address}`);
     if (hasLat && hasLng) {
-      locationParts.push(`Coordinates: ${locationLatitude},${locationLongitude}`);
+      locationParts.push(
+        `Coordinates: ${locationLatitude},${locationLongitude}`
+      );
     }
     const locLine = locationParts.join(" | ");
     const userPromptLine = sanitizedPrompt
       ? `Live user request:\n${sanitizedPrompt}`
       : "";
 
-    // Build personalized preference context for the Prompt
-    const questionnaireContext = buildQuestionnaireContext(
-      userPrefs?.questionnaire
-    );
+    const hasLiveAnchor = hasLocationInput || hasImageInput;
+    const shouldUsePlannedDestination = !hasLiveAnchor;
+
+    // Build personalized preference context for the Prompt.
+    // For live requests with location/image, onboarding destination details must not override live context.
+    const questionnaireContext = shouldUsePlannedDestination
+      ? buildQuestionnaireContext(userPrefs?.questionnaire)
+      : "";
 
     const prefContext = userPrefs
       ? `
-User Preferences:
+User Preference Signals (soft constraints):
 - Travel style: ${userPrefs.travelStyle || "not specified"}
 - Budget: ${userPrefs.budgetLevel || "mid-range"}
 - Interests: ${
@@ -243,8 +251,11 @@ User Preferences:
           userPrefs.foodPreferences?.length
             ? userPrefs.foodPreferences.join(", ")
             : "no restrictions"
-        }
-${questionnaireContext}`
+        }`
+      : "";
+
+    const planningContextBlock = questionnaireContext
+      ? `\nSaved Planning Context:\n${questionnaireContext}`
       : "";
 
     const budgetPriority = userPrefs?.questionnaire?.budget?.priority;
@@ -322,43 +333,67 @@ ${questionnaireContext}`
     }
 
     const destinationInstructions = [];
-    if (desiredCountries.length) {
+    if (shouldUsePlannedDestination && desiredCountries.length) {
       destinationInstructions.push(
         `- Keep recommendations aligned with these countries: ${desiredCountries.join(
           ", "
         )}.`
       );
     }
-    if (desiredCities.length) {
+    if (shouldUsePlannedDestination && desiredCities.length) {
       destinationInstructions.push(
         `- Strongly prioritize these cities: ${desiredCities.join(", ")}.`
       );
     }
-    if (desiredRegions.length) {
+    if (shouldUsePlannedDestination && desiredRegions.length) {
       destinationInstructions.push(
         `- Consider these regions/areas: ${desiredRegions.join(", ")}.`
       );
     }
 
     const timingInstructions = [];
-    if (timingPriorities.includes("weather")) {
+    if (shouldUsePlannedDestination && timingPriorities.includes("weather")) {
       timingInstructions.push("- Prioritize favorable weather windows.");
     }
-    if (timingPriorities.includes("crowds")) {
-      timingInstructions.push("- Favor lower-crowd attractions and time slots.");
+    if (shouldUsePlannedDestination && timingPriorities.includes("crowds")) {
+      timingInstructions.push(
+        "- Favor lower-crowd attractions and time slots."
+      );
     }
-    if (timingPriorities.includes("price")) {
-      timingInstructions.push("- Prefer value-for-money choices and lower-cost options.");
+    if (shouldUsePlannedDestination && timingPriorities.includes("price")) {
+      timingInstructions.push(
+        "- Prefer value-for-money choices and lower-cost options."
+      );
     }
-    if (tripStatus === "booked") {
+    if (shouldUsePlannedDestination && tripStatus === "booked") {
       timingInstructions.push(
         "- Assume dates are mostly fixed and optimize around confirmed-trip realism."
       );
-    } else if (tripStatus === "planning") {
+    } else if (shouldUsePlannedDestination && tripStatus === "planning") {
       timingInstructions.push(
         "- Include alternatives that improve value and timing because trip is still in planning phase."
       );
     }
+
+    const livePriorityRules = hasLiveAnchor
+      ? `
+Context Priority (MANDATORY):
+- Highest priority is the current request's live context (location/image + user prompt).
+- If location is provided, recommendations must stay around that location.
+- If location conflicts with saved trip destination, use the provided live location.
+- Do not switch to another city/country unless the user explicitly asks for it.
+- Saved onboarding destination is only secondary personalization in this mode.`
+      : `
+Context Priority (MANDATORY):
+- No strong live anchor detected, so you may use saved trip context more heavily.`;
+
+    const liveContextBlock = `
+Live Request Context:
+- Has image: ${hasImageInput ? "yes" : "no"}
+- Has shared location: ${hasLocationInput ? "yes" : "no"}
+${locLine ? `- Location details: ${locLine}` : "- Location details: Not provided"}
+${userPromptLine ? userPromptLine : "Live user request:\nNot provided"}
+`;
 
     const promptText = `
     You are a premium, user-focused travel assistant designed for mobile users.
@@ -382,14 +417,20 @@ ${questionnaireContext}`
     - Descriptions: Maximum 2 sentences per item
     - Emojis: Minimal, simple, and relevant only (📍 🍽️ 🏨)
     
-    User Personalization Context:
+    ${livePriorityRules}
+
+    User Personalization Context (secondary):
     ${prefContext || "- No specific preferences provided."}
+    ${planningContextBlock}
+    
+    ${liveContextBlock}
     
     Formatting Rules:
     - Use Markdown only
     - Use bullet points and bold text for clarity
     - Never show raw HTML
     - Never show distance values
+    - Never ask follow up questions
     
     --------------------------------
     OUTPUT FORMAT (FOLLOW EXACTLY)
@@ -429,9 +470,6 @@ ${questionnaireContext}`
     - Photo content
     - Optional user location (lat/lng)
     - Optional live user request (text)
-    
-    ${locLine ? `Context location:\n${locLine}` : ""}
-    ${userPromptLine ? `\n${userPromptLine}` : ""}
     `;
 
     const requestParts = [{ text: promptText }];

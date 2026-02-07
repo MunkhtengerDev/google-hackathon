@@ -1,5 +1,12 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Route, ShieldCheck, Sparkles, Timer } from "lucide-react";
+import {
+  DollarSign,
+  Route,
+  ShieldCheck,
+  Sparkles,
+  Timer,
+  TimerIcon,
+} from "lucide-react";
 import { Card } from "../../ui/primitives";
 
 const GOOGLE_IDENTITY_SCRIPT = "https://accounts.google.com/gsi/client";
@@ -154,17 +161,17 @@ export default function SignInPage({ onSuccess }) {
 
             <div className="mt-8 grid gap-3 sm:grid-cols-3">
               <FeatureCard
-                icon={<ShieldCheck className="h-4 w-4" />}
-                title="Secure Session"
-                text="Google identity is exchanged with your backend token."
-              />
-              <FeatureCard
                 icon={<Route className="h-4 w-4" />}
                 title="Live Route UX"
                 text="Destinations instantly reflect in your map workspace."
               />
               <FeatureCard
                 icon={<Timer className="h-4 w-4" />}
+                title="Fast Continue"
+                text="Planner state and auth restore instantly on refresh."
+              />
+              <FeatureCard
+                icon={<DollarSign className="h-4 w-4" />}
                 title="Fast Continue"
                 text="Planner state and auth restore instantly on refresh."
               />
@@ -205,18 +212,6 @@ export default function SignInPage({ onSuccess }) {
                 {error}
               </p>
             ) : null}
-
-            <div className="mt-6 rounded-2xl border border-[var(--line)] bg-[var(--surface-soft)] p-3">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[#697a83]">
-                OAuth Debug
-              </p>
-              <p className="mt-2 text-[12px] text-[#556871]">
-                Origin: <code>{currentOrigin}</code>
-              </p>
-              <p className="mt-1 text-[12px] text-[#556871]">
-                API: <code>{API_BASE_URL}/api/v1/users/google</code>
-              </p>
-            </div>
           </div>
         </Card>
       </div>

@@ -92,6 +92,8 @@ Hard rules:
 - Do not invent unavailable facts.
 - If key information is missing, state "Unknown" and ask follow-up questions.
 - Output in Markdown only.
+- Never ask follow up questions.
+
 
 User Saved Preferences:
 - Travel style: ${asText(preferences?.travelStyle, "solo")}
