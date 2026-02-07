@@ -1,13 +1,132 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import "./App.css";
 import SignInPage from "./component/auth/SignInPage";
 import TripOnboarding from "./component/tripForm/TripOnboarding";
 import AIImageRequestPage from "./component/ai/AIImageRequestPage";
 import { clearAuth, loadAuth, saveAuth } from "./lib/auth";
 
+const API_BASE_URL = (
+  import.meta.env.VITE_API_BASE_URL || "http://localhost:9008"
+).replace(/\/$/, "");
+
+function createDefaultPlannerData() {
+  return {
+    tripStatus: "",
+    context: {
+      homeCountry: "",
+      departureCity: "",
+      currency: "USD",
+    },
+    destination: {
+      countries: [],
+      cities: [],
+      regions: [],
+      flexibility: "fixed",
+    },
+    dates: {
+      start: "",
+      end: "",
+      durationDays: 7,
+      timingPriority: [],
+      seasonPref: "no_preference",
+    },
+    budget: {
+      currency: "USD",
+      usdBudget: 0,
+      priority: "balance",
+      spendingStyle: "track",
+    },
+  };
+}
+
+function normalizeText(value) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function normalizeArray(value) {
+  if (!Array.isArray(value)) return [];
+  const cleaned = value.map((item) => normalizeText(item)).filter(Boolean);
+  return Array.from(new Set(cleaned));
+}
+
+function hydratePlannerData(preferences) {
+  const base = createDefaultPlannerData();
+  const questionnaire = preferences?.questionnaire || {};
+
+  return {
+    ...base,
+    tripStatus: normalizeText(questionnaire.tripStatus),
+    context: {
+      ...base.context,
+      homeCountry: normalizeText(questionnaire.context?.homeCountry),
+      departureCity: normalizeText(questionnaire.context?.departureCity),
+      currency:
+        normalizeText(questionnaire.context?.currency) || base.context.currency,
+    },
+    destination: {
+      ...base.destination,
+      countries: normalizeArray(questionnaire.destination?.countries),
+      cities: normalizeArray(questionnaire.destination?.cities),
+      regions: normalizeArray(questionnaire.destination?.regions),
+      flexibility:
+        normalizeText(questionnaire.destination?.flexibility) ||
+        base.destination.flexibility,
+    },
+    dates: {
+      ...base.dates,
+      start: normalizeText(questionnaire.dates?.start),
+      end: normalizeText(questionnaire.dates?.end),
+      durationDays: Number(questionnaire.dates?.durationDays || base.dates.durationDays),
+      timingPriority: normalizeArray(questionnaire.dates?.timingPriority),
+      seasonPref:
+        normalizeText(questionnaire.dates?.seasonPref) || base.dates.seasonPref,
+    },
+    budget: {
+      ...base.budget,
+      currency:
+        normalizeText(questionnaire.budget?.currency) || base.budget.currency,
+      usdBudget: Number(questionnaire.budget?.usdBudget || 0),
+      priority:
+        normalizeText(questionnaire.budget?.priority) || base.budget.priority,
+      spendingStyle:
+        normalizeText(questionnaire.budget?.spendingStyle) ||
+        base.budget.spendingStyle,
+    },
+  };
+}
+
+function isPlannerComplete(data) {
+  if (!data?.tripStatus) return false;
+  if (!data.context?.homeCountry?.trim() || !data.context?.departureCity?.trim()) {
+    return false;
+  }
+
+  const destinationCount =
+    (data.destination?.countries?.length || 0) +
+    (data.destination?.cities?.length || 0) +
+    (data.destination?.regions?.length || 0);
+
+  if (destinationCount <= 0) return false;
+
+  const hasDates =
+    data.tripStatus === "booked"
+      ? Boolean(data.dates?.start) && Boolean(data.dates?.end)
+      : Boolean(data.dates?.start);
+
+  if (!hasDates) return false;
+
+  return Number(data.budget?.usdBudget || 0) > 0 && Boolean(data.budget?.currency?.trim());
+}
+
 function App() {
   const [auth, setAuth] = useState(() => loadAuth());
   const [screen, setScreen] = useState("onboarding");
+  const [plannerInitialData, setPlannerInitialData] = useState(() =>
+    createDefaultPlannerData()
+  );
+  const [isHydratingPreferences, setIsHydratingPreferences] = useState(false);
+  const [hydrateError, setHydrateError] = useState("");
+  const [tripPlanResponse, setTripPlanResponse] = useState("");
 
   const handleSignInSuccess = (session) => {
     saveAuth(session);
@@ -22,10 +141,76 @@ function App() {
     clearAuth();
     setAuth(null);
     setScreen("onboarding");
+    setPlannerInitialData(createDefaultPlannerData());
+    setHydrateError("");
+    setIsHydratingPreferences(false);
+    setTripPlanResponse("");
   };
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadPreferences = async () => {
+      if (!auth?.token) return;
+
+      setIsHydratingPreferences(true);
+      setHydrateError("");
+
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/v1/preferences`, {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${auth.token}`,
+          },
+        });
+
+        const payload = await response.json().catch(() => null);
+        if (!response.ok) {
+          throw new Error(payload?.message || "Failed to load travel preferences");
+        }
+
+        const hydratedData = hydratePlannerData(payload?.data || null);
+        if (cancelled) return;
+
+        setPlannerInitialData(hydratedData);
+        setTripPlanResponse("");
+        setScreen(isPlannerComplete(hydratedData) ? "ai" : "onboarding");
+      } catch (error) {
+        if (cancelled) return;
+        setPlannerInitialData(createDefaultPlannerData());
+        setScreen("onboarding");
+        setHydrateError(error.message || "Could not load saved travel preferences");
+        setTripPlanResponse("");
+      } finally {
+        if (cancelled) return;
+        setIsHydratingPreferences(false);
+      }
+    };
+
+    loadPreferences();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [auth?.token]);
 
   if (!auth?.token) {
     return <SignInPage onSuccess={handleSignInSuccess} />;
+  }
+
+  if (isHydratingPreferences) {
+    return (
+      <main className="min-h-screen px-4 py-8 sm:px-6">
+        <div className="mx-auto max-w-[760px] rounded-[28px] border border-[var(--line)] bg-[var(--surface)] p-8 shadow-[0_28px_64px_rgba(15,23,42,0.12)]">
+          <h1 className="font-display text-[42px] leading-[0.94] text-[var(--ink)]">
+            Loading your travel plan...
+          </h1>
+          <p className="mt-3 text-[14px] text-[var(--ink-soft)]">
+            Checking saved preferences to decide whether to open Planner or AI page.
+          </p>
+        </div>
+      </main>
+    );
   }
 
   return (
@@ -47,12 +232,30 @@ function App() {
           </button>
         </div>
       </div>
+      {hydrateError ? (
+        <div className="pointer-events-none fixed left-4 top-4 z-40 max-w-[460px] rounded-2xl border border-[#e7c2b7] bg-[#fff2ef] px-4 py-2 text-xs font-medium text-[#8b3f2d] shadow-[0_12px_26px_rgba(120,40,28,0.14)]">
+          {hydrateError}
+        </div>
+      ) : null}
       {screen === "onboarding" ? (
-        <TripOnboarding token={auth.token} onCompleted={() => setScreen("ai")} />
+        <TripOnboarding
+          token={auth.token}
+          initialData={plannerInitialData}
+          onCompleted={(result) => {
+            if (result?.plannerData && typeof result.plannerData === "object") {
+              setPlannerInitialData(result.plannerData);
+            }
+            if (typeof result?.tripPlan === "string") {
+              setTripPlanResponse(result.tripPlan);
+            }
+            setScreen("ai");
+          }}
+        />
       ) : (
         <AIImageRequestPage
           token={auth.token}
           user={auth.user}
+          initialTripPlan={tripPlanResponse}
           onBackToPlanner={() => setScreen("onboarding")}
         />
       )}

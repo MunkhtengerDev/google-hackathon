@@ -17,6 +17,90 @@ const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 const TARGET_WIDTH = 800;
 const LARGE_THRESHOLD = 1.5 * 1024 * 1024;
 
+const normalizeList = (value) =>
+  Array.isArray(value)
+    ? value.map((item) => String(item || "").trim()).filter(Boolean)
+    : [];
+
+const hasValue = (value) => {
+  if (Array.isArray(value)) return value.length > 0;
+  if (value && typeof value === "object") return Object.keys(value).length > 0;
+  return value !== undefined && value !== null && String(value).trim() !== "";
+};
+
+const formatAnswerValue = (value) => {
+  if (Array.isArray(value)) {
+    const cleaned = normalizeList(value);
+    return cleaned.length ? cleaned.join(", ") : "Not provided";
+  }
+
+  if (value && typeof value === "object") {
+    const entries = Object.entries(value).filter(([, v]) => hasValue(v));
+    if (!entries.length) return "Not provided";
+    return entries
+      .map(([key, val]) => `${key}: ${formatAnswerValue(val)}`)
+      .join(" | ");
+  }
+
+  if (value === undefined || value === null) return "Not provided";
+  const txt = String(value).trim();
+  return txt || "Not provided";
+};
+
+const buildQuestionnaireContext = (questionnaire) => {
+  if (!questionnaire || typeof questionnaire !== "object") {
+    return "- Form answers: Not provided.";
+  }
+
+  const context = questionnaire.context || {};
+  const destination = questionnaire.destination || {};
+  const dates = questionnaire.dates || {};
+  const budget = questionnaire.budget || {};
+
+  const countries = normalizeList(destination.countries);
+  const cities = normalizeList(destination.cities);
+  const regions = normalizeList(destination.regions);
+  const timingPriority = normalizeList(dates.timingPriority);
+
+  const block = [
+    "Form Answers (from onboarding):",
+    `- Trip status: ${formatAnswerValue(questionnaire.tripStatus)}`,
+    `- Home country: ${formatAnswerValue(context.homeCountry)}`,
+    `- Departure city: ${formatAnswerValue(context.departureCity)}`,
+    `- Currency: ${formatAnswerValue(context.currency)}`,
+    `- Destination countries: ${formatAnswerValue(countries)}`,
+    `- Destination cities: ${formatAnswerValue(cities)}`,
+    `- Destination regions: ${formatAnswerValue(regions)}`,
+    `- Destination flexibility: ${formatAnswerValue(destination.flexibility)}`,
+    `- Date start: ${formatAnswerValue(dates.start)}`,
+    `- Date end: ${formatAnswerValue(dates.end)}`,
+    `- Duration days: ${formatAnswerValue(dates.durationDays)}`,
+    `- Timing priorities: ${formatAnswerValue(timingPriority)}`,
+    `- Season preference: ${formatAnswerValue(dates.seasonPref)}`,
+    `- Budget amount (USD): ${formatAnswerValue(budget.usdBudget)}`,
+    `- Budget display currency: ${formatAnswerValue(budget.currency)}`,
+    `- Budget priority: ${formatAnswerValue(budget.priority)}`,
+    `- Spending style: ${formatAnswerValue(budget.spendingStyle)}`,
+  ];
+
+  const askedQuestions = Array.isArray(questionnaire.askedQuestions)
+    ? questionnaire.askedQuestions
+    : [];
+
+  const qaLines = askedQuestions
+    .filter((item) => item && item.question)
+    .filter((item) => hasValue(item.answer))
+    .slice(0, 40)
+    .map((item) => `- ${item.question}: ${formatAnswerValue(item.answer)}`);
+
+  if (qaLines.length) {
+    block.push("Answered Questions:");
+    block.push(...qaLines);
+  }
+
+  return block.join("\n");
+};
+
 // Utility SSE send
 const sseSend = (res, obj) => res.write(`data: ${JSON.stringify(obj)}\n\n`);
 const sseError = (res, message, status = 500) => {
@@ -46,11 +130,26 @@ exports.fetchImageDataAndGenerateContentStream = async (req, res) => {
       locationLatitude,
       locationLongitude,
       address,
+      userPrompt,
       userId, // Incoming ID (can be MongoDB ObjectId OR Guest UUID)
       language,
     } = req.body || {};
 
-    if (!rawBase64) return sseError(res, "Image data required", 400);
+    const sanitizedPrompt =
+      typeof userPrompt === "string" ? userPrompt.trim() : "";
+    const hasImageInput = Boolean(rawBase64);
+    const hasLocationInput =
+      hasValue(address) || hasValue(locationLatitude) || hasValue(locationLongitude);
+    const hasPromptInput = Boolean(sanitizedPrompt);
+
+    if (!hasImageInput && !hasLocationInput && !hasPromptInput) {
+      return sseError(
+        res,
+        "Provide at least one input: image, shared location, or prompt.",
+        400
+      );
+    }
+
     if (!userId) return sseError(res, "User ID required", 400);
     if (!GEMINI_KEY) return sseError(res, "Gemini key missing", 500);
 
@@ -75,45 +174,60 @@ exports.fetchImageDataAndGenerateContentStream = async (req, res) => {
       console.warn("Could not fetch preferences:", e.message);
     }
 
-    // Normalize base64
-    let imageBase64 = rawBase64;
-    if (imageBase64.startsWith("data:")) {
-      const comma = imageBase64.indexOf(",");
-      if (comma !== -1) imageBase64 = imageBase64.slice(comma + 1);
+    let buffer = null;
+    if (hasImageInput) {
+      // Normalize base64
+      let imageBase64 = rawBase64;
+      if (imageBase64.startsWith("data:")) {
+        const comma = imageBase64.indexOf(",");
+        if (comma !== -1) imageBase64 = imageBase64.slice(comma + 1);
+      }
+
+      // Decode + compress using Sharp
+      buffer = Buffer.from(imageBase64, "base64");
+      try {
+        buffer =
+          buffer.length > LARGE_THRESHOLD
+            ? await sharp(buffer)
+                .rotate()
+                .resize({ width: TARGET_WIDTH, withoutEnlargement: true })
+                .jpeg({ quality: 60, mozjpeg: true })
+                .toBuffer()
+            : await sharp(buffer)
+                .rotate()
+                .resize({ width: TARGET_WIDTH, withoutEnlargement: true })
+                .jpeg({ quality: 70, mozjpeg: true })
+                .toBuffer();
+      } catch (error) {
+        return sseError(res, "Invalid image format or unreadable image", 400);
+      }
+
+      if (buffer.length > MAX_IMAGE_BYTES) {
+        return sseError(res, "Image too large after compression", 400);
+      }
+      sseSend(res, { type: "image", compressedBytes: buffer.length });
     }
-
-    // Decode + compress using Sharp
-    let buffer = Buffer.from(imageBase64, "base64");
-    buffer =
-      buffer.length > LARGE_THRESHOLD
-        ? await sharp(buffer)
-            .rotate()
-            .resize({ width: TARGET_WIDTH, withoutEnlargement: true })
-            .jpeg({ quality: 60, mozjpeg: true })
-            .toBuffer()
-        : await sharp(buffer)
-            .rotate()
-            .resize({ width: TARGET_WIDTH, withoutEnlargement: true })
-            .jpeg({ quality: 70, mozjpeg: true })
-            .toBuffer();
-
-    if (buffer.length > MAX_IMAGE_BYTES)
-      return sseError(res, "Image too large after compression", 400);
-    sseSend(res, { type: "image", compressedBytes: buffer.length });
 
     const imageUrl = null;
 
     // Build location context
-    const locLine =
-      address || (locationLatitude && locationLongitude)
-        ? (address ? `Address: ${address}` : "") +
-          (address && locationLatitude ? " | " : "") +
-          (locationLatitude && locationLongitude
-            ? `Coordinates: ${locationLatitude},${locationLongitude}`
-            : "")
-        : "";
+    const hasLat = hasValue(locationLatitude);
+    const hasLng = hasValue(locationLongitude);
+    const locationParts = [];
+    if (hasValue(address)) locationParts.push(`Address: ${address}`);
+    if (hasLat && hasLng) {
+      locationParts.push(`Coordinates: ${locationLatitude},${locationLongitude}`);
+    }
+    const locLine = locationParts.join(" | ");
+    const userPromptLine = sanitizedPrompt
+      ? `Live user request:\n${sanitizedPrompt}`
+      : "";
 
     // Build personalized preference context for the Prompt
+    const questionnaireContext = buildQuestionnaireContext(
+      userPrefs?.questionnaire
+    );
+
     const prefContext = userPrefs
       ? `
 User Preferences:
@@ -129,16 +243,41 @@ User Preferences:
           userPrefs.foodPreferences?.length
             ? userPrefs.foodPreferences.join(", ")
             : "no restrictions"
-        }`
+        }
+${questionnaireContext}`
       : "";
 
+    const budgetPriority = userPrefs?.questionnaire?.budget?.priority;
+    const spendingStyle = userPrefs?.questionnaire?.budget?.spendingStyle;
+    const tripStatus = userPrefs?.questionnaire?.tripStatus;
+    const desiredCountries = normalizeList(
+      userPrefs?.questionnaire?.destination?.countries
+    );
+    const desiredCities = normalizeList(
+      userPrefs?.questionnaire?.destination?.cities
+    );
+    const desiredRegions = normalizeList(
+      userPrefs?.questionnaire?.destination?.regions
+    );
+    const timingPriorities = normalizeList(
+      userPrefs?.questionnaire?.dates?.timingPriority
+    );
+
     let budgetInstructions = "";
-    if (userPrefs?.budgetLevel === "budget") {
+    if (userPrefs?.budgetLevel === "budget" || budgetPriority === "cheapest") {
       budgetInstructions =
         "- Focus on hostels, budget hotels, affordable stays, and budget-friendly options.";
-    } else if (userPrefs?.budgetLevel === "luxury") {
+    } else if (
+      userPrefs?.budgetLevel === "luxury" ||
+      budgetPriority === "comfort" ||
+      budgetPriority === "once"
+    ) {
       budgetInstructions =
         "- Focus on high-end hotels, boutique stays, luxury resorts, and premium options.";
+    }
+    if (spendingStyle === "track") {
+      budgetInstructions +=
+        "\n- Include price transparency and clearly cost-conscious options in each section.";
     }
 
     // Build food-specific instructions
@@ -182,11 +321,51 @@ User Preferences:
       )}.`;
     }
 
+    const destinationInstructions = [];
+    if (desiredCountries.length) {
+      destinationInstructions.push(
+        `- Keep recommendations aligned with these countries: ${desiredCountries.join(
+          ", "
+        )}.`
+      );
+    }
+    if (desiredCities.length) {
+      destinationInstructions.push(
+        `- Strongly prioritize these cities: ${desiredCities.join(", ")}.`
+      );
+    }
+    if (desiredRegions.length) {
+      destinationInstructions.push(
+        `- Consider these regions/areas: ${desiredRegions.join(", ")}.`
+      );
+    }
+
+    const timingInstructions = [];
+    if (timingPriorities.includes("weather")) {
+      timingInstructions.push("- Prioritize favorable weather windows.");
+    }
+    if (timingPriorities.includes("crowds")) {
+      timingInstructions.push("- Favor lower-crowd attractions and time slots.");
+    }
+    if (timingPriorities.includes("price")) {
+      timingInstructions.push("- Prefer value-for-money choices and lower-cost options.");
+    }
+    if (tripStatus === "booked") {
+      timingInstructions.push(
+        "- Assume dates are mostly fixed and optimize around confirmed-trip realism."
+      );
+    } else if (tripStatus === "planning") {
+      timingInstructions.push(
+        "- Include alternatives that improve value and timing because trip is still in planning phase."
+      );
+    }
+
     const promptText = `
     You are a premium, user-focused travel assistant designed for mobile users.
     
     Your mission:
-    - Identify the place shown in the image ONLY if you are highly confident.
+    - If an image is provided, identify the place shown ONLY if you are highly confident.
+    - If no image is provided, respond using location and live user request context.
     - Deliver clear, elegant, and concise travel guidance optimized for small screens.
     
     STRICT OUTPUT RULES (MANDATORY):
@@ -229,6 +408,8 @@ User Preferences:
     • Google Maps: https://www.google.com/maps/search/?api=1&query=Name+With+Pluses
     
     ${interestInstructions}
+    ${destinationInstructions.join("\n")}
+    ${timingInstructions.join("\n")}
     
     ## Recommended Accommodations (Top 5)
     - Follow the same format as Nearby Attractions
@@ -247,11 +428,19 @@ User Preferences:
     Inputs you may receive:
     - Photo content
     - Optional user location (lat/lng)
+    - Optional live user request (text)
     
     ${locLine ? `Context location:\n${locLine}` : ""}
+    ${userPromptLine ? `\n${userPromptLine}` : ""}
     `;
 
-    const compressedBase64 = buffer.toString("base64");
+    const requestParts = [{ text: promptText }];
+    if (buffer) {
+      const compressedBase64 = buffer.toString("base64");
+      requestParts.push({
+        inlineData: { mimeType: "image/jpeg", data: compressedBase64 },
+      });
+    }
 
     // Start model stream
     sseSend(res, { type: "stream_start" });
@@ -263,12 +452,7 @@ User Preferences:
         contents: [
           {
             role: "user",
-            parts: [
-              { text: promptText },
-              {
-                inlineData: { mimeType: "image/jpeg", data: compressedBase64 },
-              },
-            ],
+            parts: requestParts,
           },
         ],
       });
@@ -291,7 +475,7 @@ User Preferences:
       const historyRecord = new History({
         ...(isMongoId ? { userId: [userId] } : { guestId: userId }),
         image: imageUrl,
-        title: "Generated Content",
+        title: buffer ? "Generated Content" : "Live Travel Assistant",
         detail: emitted || "No content generated.",
       });
       await historyRecord.save();

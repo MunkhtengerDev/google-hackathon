@@ -4,6 +4,9 @@ import {
   Camera,
   ImagePlus,
   Loader2,
+  MapPin,
+  MessageSquareText,
+  Route,
   Send,
   Square,
   UploadCloud,
@@ -30,41 +33,77 @@ function formatBytes(bytes) {
   return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
 }
 
-async function getLocationPayload() {
-  if (!navigator.geolocation) return {};
-
-  try {
-    const position = await new Promise((resolve, reject) => {
-      navigator.geolocation.getCurrentPosition(resolve, reject, {
-        enableHighAccuracy: false,
-        timeout: 6000,
-        maximumAge: 120000,
-      });
-    });
-
-    return {
-      locationLatitude: position.coords.latitude,
-      locationLongitude: position.coords.longitude,
-    };
-  } catch {
-    return {};
+async function requestBrowserLocation() {
+  if (!navigator.geolocation) {
+    throw new Error("Geolocation is not supported in this browser");
   }
+
+  const position = await new Promise((resolve, reject) => {
+    navigator.geolocation.getCurrentPosition(resolve, reject, {
+      enableHighAccuracy: false,
+      timeout: 8000,
+      maximumAge: 120000,
+    });
+  });
+
+  return {
+    locationLatitude: position.coords.latitude,
+    locationLongitude: position.coords.longitude,
+  };
 }
 
-export default function AIImageRequestPage({ token, user, onBackToPlanner }) {
+async function reverseGeocode(latitude, longitude) {
+  const url = new URL("https://nominatim.openstreetmap.org/reverse");
+  url.searchParams.set("format", "jsonv2");
+  url.searchParams.set("lat", String(latitude));
+  url.searchParams.set("lon", String(longitude));
+
+  const response = await fetch(url.toString(), {
+    headers: {
+      Accept: "application/json",
+    },
+  });
+
+  if (!response.ok) {
+    throw new Error("Failed to resolve address from coordinates");
+  }
+
+  const payload = await response.json();
+  return typeof payload?.display_name === "string" ? payload.display_name : "";
+}
+
+export default function AIImageRequestPage({
+  token,
+  user,
+  onBackToPlanner,
+  initialTripPlan = "",
+}) {
   const fileInputRef = useRef(null);
   const videoRef = useRef(null);
   const streamRef = useRef(null);
 
+  const [tripPlanText, setTripPlanText] = useState(initialTripPlan || "");
+  const [isTripPlanLoading, setIsTripPlanLoading] = useState(false);
+  const [tripPlanError, setTripPlanError] = useState("");
   const [imageDataUrl, setImageDataUrl] = useState("");
+  const [sharedLocation, setSharedLocation] = useState(null);
+  const [locationStatus, setLocationStatus] = useState("Location not shared");
+  const [isSharingLocation, setIsSharingLocation] = useState(false);
+  const [userPrompt, setUserPrompt] = useState("");
   const [resultText, setResultText] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState("");
-  const [status, setStatus] = useState("Attach an image to start.");
+  const [status, setStatus] = useState(
+    "Share location, upload image, capture photo, or type a prompt to start."
+  );
   const [compressedBytes, setCompressedBytes] = useState(0);
   const [cameraOpen, setCameraOpen] = useState(false);
 
-  const canSend = Boolean(imageDataUrl) && Boolean(user?.id) && !isSending;
+  const hasSendInput =
+    Boolean(imageDataUrl) ||
+    Boolean(sharedLocation) ||
+    Boolean(userPrompt.trim());
+  const canSend = hasSendInput && Boolean(user?.id) && !isSending;
 
   const previewLabel = useMemo(() => {
     if (!imageDataUrl) return "No image selected";
@@ -152,6 +191,82 @@ export default function AIImageRequestPage({ token, user, onBackToPlanner }) {
     }
   };
 
+  const loadLatestTripPlan = async () => {
+    if (!token) return;
+
+    setIsTripPlanLoading(true);
+    setTripPlanError("");
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/v1/trip-planning/latest`, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      const payload = await response.json().catch(() => null);
+      if (response.status === 404) {
+        setTripPlanText("");
+        return;
+      }
+
+      if (!response.ok) {
+        throw new Error(payload?.message || "Failed to load saved trip plan");
+      }
+
+      setTripPlanText(
+        typeof payload?.data?.plan === "string" ? payload.data.plan : ""
+      );
+    } catch (fetchError) {
+      setTripPlanError(fetchError.message || "Unable to load trip plan");
+    } finally {
+      setIsTripPlanLoading(false);
+    }
+  };
+
+  const shareLocation = async () => {
+    setIsSharingLocation(true);
+    setError("");
+    try {
+      const location = await requestBrowserLocation();
+
+      let resolvedAddress = "";
+      try {
+        resolvedAddress = await reverseGeocode(
+          location.locationLatitude,
+          location.locationLongitude
+        );
+      } catch {
+        resolvedAddress = "";
+      }
+
+      const nextSharedLocation = {
+        ...location,
+        ...(resolvedAddress
+          ? { address: resolvedAddress }
+          : {
+              address: `Approximate coordinates: ${location.locationLatitude.toFixed(
+                5
+              )}, ${location.locationLongitude.toFixed(5)}`,
+            }),
+      };
+
+      setSharedLocation(nextSharedLocation);
+      setLocationStatus(
+        resolvedAddress
+          ? `Shared: ${resolvedAddress}`
+          : `Shared: ${location.locationLatitude.toFixed(5)}, ${location.locationLongitude.toFixed(5)}`
+      );
+      setStatus("Location shared. You can send now.");
+    } catch (locationError) {
+      setLocationStatus("Location not shared");
+      setError(locationError.message || "Unable to share location");
+    } finally {
+      setIsSharingLocation(false);
+    }
+  };
+
   const sendImage = async () => {
     if (!canSend) return;
 
@@ -159,22 +274,24 @@ export default function AIImageRequestPage({ token, user, onBackToPlanner }) {
     setResultText("");
     setError("");
     setCompressedBytes(0);
-    setStatus("Sending image to AI...");
+    setStatus("Sending request to Gemini...");
 
     try {
-      const location = await getLocationPayload();
+      const requestBody = {
+        userId: user.id,
+        language: navigator.language || "English",
+        ...(imageDataUrl ? { imageBase64: imageDataUrl } : {}),
+        ...(sharedLocation || {}),
+        ...(userPrompt.trim() ? { userPrompt: userPrompt.trim() } : {}),
+      };
+
       const response = await fetch(`${API_BASE_URL}/api/v1/images`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
-        body: JSON.stringify({
-          imageBase64: imageDataUrl,
-          userId: user.id,
-          language: navigator.language || "English",
-          ...location,
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       if (!response.ok) {
@@ -242,6 +359,18 @@ export default function AIImageRequestPage({ token, user, onBackToPlanner }) {
     }
   };
 
+  useEffect(() => {
+    if (typeof initialTripPlan === "string" && initialTripPlan.trim()) {
+      setTripPlanText(initialTripPlan);
+      setTripPlanError("");
+    }
+  }, [initialTripPlan]);
+
+  useEffect(() => {
+    if (initialTripPlan?.trim()) return;
+    loadLatestTripPlan();
+  }, [token]);
+
   useEffect(() => () => stopCamera(), []);
 
   return (
@@ -252,7 +381,7 @@ export default function AIImageRequestPage({ token, user, onBackToPlanner }) {
             <SectionHeader
               icon={<ImagePlus className="h-5 w-5" />}
               title="AI Image Assistant"
-              subtitle="Upload an image or capture from camera, then send to Gemini."
+              subtitle="Share location, upload image, capture from camera, or send a custom prompt."
               right={
                 <button
                   type="button"
@@ -341,6 +470,50 @@ export default function AIImageRequestPage({ token, user, onBackToPlanner }) {
                 </div>
               ) : null}
 
+              <ControlShell className="bg-white">
+                <div className="flex items-start gap-3">
+                  <MessageSquareText className="mt-0.5 h-4 w-4 text-[#6d7c84]" />
+                  <div className="w-full">
+                    <p className="mb-2 text-[12px] font-semibold text-[#2e4752]">
+                      Prompt For Live AI (optional)
+                    </p>
+                    <textarea
+                      value={userPrompt}
+                      onChange={(event) => setUserPrompt(event.target.value)}
+                      rows={3}
+                      placeholder="e.g. I am near this place. What should I do in the next 3 hours?"
+                      className="w-full resize-y rounded-xl border border-[#dfd1ba] bg-[#fffdf9] px-3 py-2 text-[13px] text-[var(--ink)] outline-none placeholder:text-[#819199] focus:border-[var(--line-strong)]"
+                    />
+                  </div>
+                </div>
+              </ControlShell>
+
+              <div className="rounded-[16px] border border-[#dbcfbc] bg-[#fff6e7] p-3">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="text-xs font-medium text-[#566972]">
+                    {locationStatus}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={shareLocation}
+                    disabled={isSharingLocation}
+                    className={[
+                      "inline-flex items-center gap-2 rounded-full border px-3.5 py-2 text-xs font-semibold transition",
+                      isSharingLocation
+                        ? "cursor-not-allowed border-[#d9ccb8] bg-[#f2e7d5] text-[#9a8f80]"
+                        : "border-[var(--line)] bg-white text-[#2f4954] hover:border-[var(--line-strong)] hover:bg-[#fff8eb]",
+                    ].join(" ")}
+                  >
+                    {isSharingLocation ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <MapPin className="h-3.5 w-3.5" />
+                    )}
+                    {isSharingLocation ? "Sharing..." : "Share Location"}
+                  </button>
+                </div>
+              </div>
+
               <div className="rounded-[16px] border border-[#dbcfbc] bg-[#fff6e7] px-4 py-3 text-xs font-medium text-[#566972]">
                 {previewLabel}
                 {compressedBytes > 0 ? ` • compressed ${formatBytes(compressedBytes)}` : ""}
@@ -379,11 +552,41 @@ export default function AIImageRequestPage({ token, user, onBackToPlanner }) {
           </Card>
         </section>
 
-        <section className="lg:col-span-7">
+        <section className="space-y-6 lg:col-span-7">
+          <Card>
+            <SectionHeader
+              icon={<Route className="h-5 w-5" />}
+              title="Trip Plan AI Response"
+              subtitle="Generated from your completed planner form and saved in backend."
+            />
+
+            <div className="min-h-[280px] rounded-[20px] border border-[var(--line)] bg-[var(--surface-soft)] p-4 sm:p-5">
+              {isTripPlanLoading ? (
+                <div className="flex min-h-[230px] items-center justify-center text-center text-[13px] text-[#6a7b84]">
+                  Loading your saved trip plan...
+                </div>
+              ) : tripPlanText ? (
+                <pre className="whitespace-pre-wrap break-words text-[13px] leading-relaxed text-[#243944]">
+                  {tripPlanText}
+                </pre>
+              ) : (
+                <div className="flex min-h-[230px] items-center justify-center text-center text-[13px] text-[#6a7b84]">
+                  No saved trip plan yet. Complete the planner form to generate one.
+                </div>
+              )}
+            </div>
+
+            {tripPlanError ? (
+              <p className="mt-3 rounded-xl border border-[#e5c2b9] bg-[#fff2ef] px-3 py-2 text-sm text-[#8b3f2d]">
+                {tripPlanError}
+              </p>
+            ) : null}
+          </Card>
+
           <Card className="h-full">
             <SectionHeader
               icon={<Send className="h-5 w-5" />}
-              title="Generation Result"
+              title="Live Travel AI Response"
               subtitle={status}
             />
 

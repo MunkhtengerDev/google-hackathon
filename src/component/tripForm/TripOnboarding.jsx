@@ -91,6 +91,31 @@ const STEPS = [
   },
 ];
 
+function mergePlannerData(base, loaded) {
+  if (!loaded || typeof loaded !== "object") return base;
+
+  return {
+    ...base,
+    ...loaded,
+    context: {
+      ...base.context,
+      ...(loaded.context || {}),
+    },
+    destination: {
+      ...base.destination,
+      ...(loaded.destination || {}),
+    },
+    dates: {
+      ...base.dates,
+      ...(loaded.dates || {}),
+    },
+    budget: {
+      ...base.budget,
+      ...(loaded.budget || {}),
+    },
+  };
+}
+
 function isStepComplete(stepKey, data) {
   if (stepKey === "status") {
     return Boolean(data.tripStatus);
@@ -308,10 +333,12 @@ function buildPreferencesPayload(data) {
   };
 }
 
-export default function TripOnboarding({ token, onCompleted }) {
+export default function TripOnboarding({ token, onCompleted, initialData }) {
   const mapsApiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 
-  const [data, setData] = useState(() => defaultState());
+  const [data, setData] = useState(() =>
+    mergePlannerData(defaultState(), initialData)
+  );
   const [step, setStep] = useState(0);
   const [rightQuery, setRightQuery] = useState("");
   const [showTransition, setShowTransition] = useState(false);
@@ -319,6 +346,7 @@ export default function TripOnboarding({ token, onCompleted }) {
   const [saveError, setSaveError] = useState("");
   const [saveSuccess, setSaveSuccess] = useState("");
   const [shouldNavigateAfterSave, setShouldNavigateAfterSave] = useState(false);
+  const [generatedTripPlan, setGeneratedTripPlan] = useState("");
 
   const stepConfig = STEPS[step];
   const isLastStep = step === STEPS.length - 1;
@@ -403,6 +431,7 @@ export default function TripOnboarding({ token, onCompleted }) {
     setSaveError("");
     setSaveSuccess("");
     setShouldNavigateAfterSave(false);
+    setGeneratedTripPlan("");
   };
 
   const saveTravelPreferences = async () => {
@@ -416,13 +445,15 @@ export default function TripOnboarding({ token, onCompleted }) {
     setSaveSuccess("");
 
     try {
+      const preferencesPayload = buildPreferencesPayload(data);
+
       const response = await fetch(`${API_BASE_URL}/api/v1/preferences`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(buildPreferencesPayload(data)),
+        body: JSON.stringify(preferencesPayload),
       });
 
       const payload = await response.json().catch(() => null);
@@ -430,12 +461,37 @@ export default function TripOnboarding({ token, onCompleted }) {
         throw new Error(payload?.message || "Failed to save preferences");
       }
 
-      setSaveSuccess("Travel preferences saved to backend.");
+      const planningResponse = await fetch(
+        `${API_BASE_URL}/api/v1/trip-planning/generate`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      const planningPayload = await planningResponse.json().catch(() => null);
+      if (!planningResponse.ok) {
+        throw new Error(
+          planningPayload?.message || "Preferences saved, but trip plan generation failed"
+        );
+      }
+
+      const planText = planningPayload?.data?.plan;
+      if (!planText || typeof planText !== "string") {
+        throw new Error("Trip plan generated but response payload was invalid");
+      }
+
+      setGeneratedTripPlan(planText);
+      setSaveSuccess("Travel preferences saved and trip plan generated.");
       setShouldNavigateAfterSave(true);
       setShowTransition(true);
     } catch (error) {
       setSaveError(error.message || "Unable to save preferences");
       setShouldNavigateAfterSave(false);
+      setGeneratedTripPlan("");
     } finally {
       setIsSaving(false);
     }
@@ -459,7 +515,10 @@ export default function TripOnboarding({ token, onCompleted }) {
       setShowTransition(false);
       if (shouldNavigateAfterSave) {
         setShouldNavigateAfterSave(false);
-        onCompleted?.();
+        onCompleted?.({
+          plannerData: mergePlannerData(defaultState(), data),
+          tripPlan: generatedTripPlan,
+        });
       }
       return;
     }

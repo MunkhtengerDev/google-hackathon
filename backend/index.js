@@ -6,7 +6,7 @@ const userRouter = require("./routes/UserRoutes");
 const imageRouter = require("./routes/ImageRoutes");
 const historyRoutes = require("./routes/HistoryRoutes");
 const preferenceRouter = require("./routes/PreferencesRoutes");
-
+const tripPlanningRouter = require("./routes/TripPlanningRoutes");
 
 const connect = require("./database");
 
@@ -23,6 +23,7 @@ app.use("/api/v1/users", userRouter);
 app.use("/api/v1/images", imageRouter);
 app.use("/api/v1/history", historyRoutes);
 app.use("/api/v1/preferences", preferenceRouter);
+app.use("/api/v1/trip-planning", tripPlanningRouter);
 
 // Connect to the database
 connect();
