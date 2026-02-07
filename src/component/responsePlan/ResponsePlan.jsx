@@ -16,6 +16,13 @@ import {
 } from "lucide-react";
 import { Card, SectionHeader } from "../../ui/primitives";
 
+function formatTimestamp(value) {
+  if (!value) return "Not available";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  return date.toLocaleString();
+}
+
 /**
  * Minimal markdown parser for your AI output:
  * - Splits by H2 (##) into sections
@@ -53,9 +60,7 @@ function parseMarkdownSections(md = "") {
 
 /** Extract budget lines like "* Flights: $1500" from a "Budget Allocation" section */
 function extractBudgetItems(sections) {
-  const target = sections.find((s) =>
-    /budget allocation/i.test(s.title || "")
-  );
+  const target = sections.find((s) => /budget allocation/i.test(s.title || ""));
   if (!target?.content) return [];
 
   const lines = target.content.split("\n").map((l) => l.trim());
@@ -81,7 +86,6 @@ function extractDays(sections) {
     /(day-by-day|itinerary)/i.test(s.title || "")
   );
   if (!target?.content) return [];
-
   const lines = target.content.split("\n");
   const days = [];
   for (const raw of lines) {
@@ -124,7 +128,9 @@ function NavItem({ active, icon, label, onClick, badge }) {
               <span
                 className={[
                   "rounded-full px-2 py-0.5 text-[10px] font-bold",
-                  active ? "bg-white/15 text-white" : "bg-[#ffe6bf] text-[#6a4a12]",
+                  active
+                    ? "bg-white/15 text-white"
+                    : "bg-[#ffe6bf] text-[#6a4a12]",
                 ].join(" ")}
               >
                 {badge}
@@ -176,15 +182,23 @@ export default function ResponsePlan({
   title = "Trip Dashboard",
   subtitle = "Switch views from the sidebar to explore your plan.",
   responseText = "",
+  planResponseText = "",
+  liveResponseText = "",
   smartPlanCount = 5, // 3 / 5 / 7
+  isLoading = false,
+  loadError = "",
+  lastPlanAt = "",
+  lastLiveAt = "",
   onRefresh,
   rightNowContext,
 }) {
   const [active, setActive] = useState("smart");
+  const sourcePlanText = String(planResponseText || responseText || "");
+  const sourceLiveText = String(liveResponseText || "");
 
   const sections = useMemo(
-    () => parseMarkdownSections(responseText),
-    [responseText]
+    () => parseMarkdownSections(sourcePlanText),
+    [sourcePlanText]
   );
 
   const days = useMemo(() => extractDays(sections), [sections]);
@@ -193,7 +207,9 @@ export default function ResponsePlan({
   // "Smart plans": we generate options by slicing itinerary days into variants
   const smartPlans = useMemo(() => {
     const count = [3, 5, 7].includes(smartPlanCount) ? smartPlanCount : 5;
-    const base = days.length ? days : [{ day: 1, text: "No itinerary parsed yet." }];
+    const base = days.length
+      ? days
+      : [{ day: 1, text: "No itinerary parsed yet." }];
 
     // Create simple variants by shifting emphasis (early/mid/late)
     const variants = [];
@@ -215,7 +231,7 @@ export default function ResponsePlan({
     return variants;
   }, [days, smartPlanCount]);
 
-  const canShow = Boolean(String(responseText || "").trim());
+  const canShow = Boolean(sourcePlanText.trim());
 
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
@@ -275,21 +291,38 @@ export default function ResponsePlan({
           </div>
 
           <div className="mt-4 flex flex-wrap gap-2">
-            <Pill icon={<MapPin className="h-3.5 w-3.5" />} text="Location-aware" />
+            <Pill
+              icon={<MapPin className="h-3.5 w-3.5" />}
+              text="Location-aware"
+            />
             <Pill icon={<Clock className="h-3.5 w-3.5" />} text="Time logic" />
+          </div>
+          <div className="mt-3 rounded-2xl border border-[#eadfcf] bg-[#fffaf1] px-3 py-2 text-[11px] text-[#5d727c]">
+            <div>Plan updated: {formatTimestamp(lastPlanAt)}</div>
+            <div className="mt-1">Live updated: {formatTimestamp(lastLiveAt)}</div>
           </div>
         </Card>
       </aside>
 
       {/* Main content */}
       <section className="lg:col-span-9">
-        {!canShow ? (
+        {isLoading ? (
+          <EmptyState
+            title="Loading trip dashboard..."
+            subtitle="Fetching your latest saved trip plan and live response."
+          />
+        ) : !canShow ? (
           <EmptyState
             title="No AI response yet"
             subtitle="Generate a plan (or send a prompt) and the dashboard will turn it into an interactive view."
           />
         ) : (
           <div className="space-y-6">
+            {loadError ? (
+              <div className="rounded-2xl border border-[#e7c2b7] bg-[#fff2ef] px-4 py-3 text-xs font-semibold text-[#8b3f2d]">
+                {loadError}
+              </div>
+            ) : null}
             {/* Header row actions */}
             <Card>
               <div className="flex flex-wrap items-center justify-between gap-3">
@@ -305,7 +338,11 @@ export default function ResponsePlan({
                 <div className="flex flex-wrap items-center gap-2">
                   <button
                     type="button"
-                    onClick={() => navigator.clipboard?.writeText(responseText)}
+                    onClick={() =>
+                      sourcePlanText.trim()
+                        ? navigator.clipboard?.writeText(sourcePlanText)
+                        : null
+                    }
                     className="inline-flex items-center gap-2 rounded-full border border-[var(--line)] bg-white px-3.5 py-2 text-xs font-semibold text-[#2f4954] transition hover:border-[var(--line-strong)] hover:bg-[#fff8eb]"
                   >
                     <Copy className="h-3.5 w-3.5" />
@@ -315,7 +352,9 @@ export default function ResponsePlan({
                   <button
                     type="button"
                     onClick={() => {
-                      const blob = new Blob([responseText], { type: "text/plain;charset=utf-8" });
+                      const blob = new Blob([sourcePlanText], {
+                        type: "text/plain;charset=utf-8",
+                      });
                       const url = URL.createObjectURL(blob);
                       const a = document.createElement("a");
                       a.href = url;
@@ -348,7 +387,9 @@ export default function ResponsePlan({
                         onChange={(e) => {
                           // parent controls recommended; local fallback:
                           // eslint-disable-next-line no-alert
-                          alert("Tip: control smartPlanCount from parent. This is UI-only.");
+                          alert(
+                            "Tip: control smartPlanCount from parent. This is UI-only."
+                          );
                         }}
                         className="rounded-full border border-[var(--line)] bg-white px-3 py-1.5 text-xs font-semibold text-[#2f4954]"
                       >
@@ -400,7 +441,8 @@ export default function ResponsePlan({
                         ))}
                         {!days.length ? (
                           <div className="text-[12px] text-[#6a7b84]">
-                            Couldn’t parse “Day X” lines yet. Still showing the response in other tabs.
+                            Couldn’t parse “Day X” lines yet. Still showing the
+                            response in other tabs.
                           </div>
                         ) : null}
                       </div>
@@ -432,7 +474,8 @@ export default function ResponsePlan({
                         Map Panel
                       </div>
                       <div className="mt-1 text-[12px] text-[#6a7b84]">
-                        Replace this box with your Google Maps component (DirectionsService + DirectionsRenderer).
+                        Replace this box with your Google Maps component
+                        (DirectionsService + DirectionsRenderer).
                       </div>
                       <div className="mt-4 grid h-[270px] place-items-center rounded-[18px] border border-dashed border-[#e0d3be] bg-white text-[12px] text-[#6a7b84]">
                         Google Maps goes here
@@ -447,7 +490,8 @@ export default function ResponsePlan({
                         Route Timeline
                       </div>
                       <div className="mt-1 text-[12px] text-[#6a7b84]">
-                        Pull stops from itinerary sections (museums, hotels, etc.)
+                        Pull stops from itinerary sections (museums, hotels,
+                        etc.)
                       </div>
 
                       <div className="mt-4 space-y-2">
@@ -466,7 +510,8 @@ export default function ResponsePlan({
                         ))}
                         {!days.length ? (
                           <div className="text-[12px] text-[#6a7b84]">
-                            No “Day X” items found yet. Still fine—map can also run from user-selected places.
+                            No “Day X” items found yet. Still fine—map can also
+                            run from user-selected places.
                           </div>
                         ) : null}
                       </div>
@@ -515,7 +560,8 @@ export default function ResponsePlan({
                           </div>
                         ) : (
                           <div className="text-[12px] text-[#6a7b84]">
-                            Couldn’t parse “Budget Allocation” yet. Keep the raw section available in “All Sections”.
+                            Couldn’t parse “Budget Allocation” yet. Keep the raw
+                            section available in “All Sections”.
                           </div>
                         )}
                       </div>
@@ -643,10 +689,22 @@ export default function ResponsePlan({
 
                       <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
                         {[
-                          { t: "Find nearby art museums", i: <MapPin className="h-4 w-4" /> },
-                          { t: "Best cafe within 15 min walk", i: <MapPin className="h-4 w-4" /> },
-                          { t: "Sunset viewpoint + route", i: <Route className="h-4 w-4" /> },
-                          { t: "Buy timed tickets now", i: <Clock className="h-4 w-4" /> },
+                          {
+                            t: "Find nearby art museums",
+                            i: <MapPin className="h-4 w-4" />,
+                          },
+                          {
+                            t: "Best cafe within 15 min walk",
+                            i: <MapPin className="h-4 w-4" />,
+                          },
+                          {
+                            t: "Sunset viewpoint + route",
+                            i: <Route className="h-4 w-4" />,
+                          },
+                          {
+                            t: "Buy timed tickets now",
+                            i: <Clock className="h-4 w-4" />,
+                          },
                         ].map((x) => (
                           <button
                             key={x.t}
@@ -669,11 +727,27 @@ export default function ResponsePlan({
                       {rightNowContext ? (
                         <div className="mt-4 rounded-[18px] border border-[#eadfcf] bg-white p-3 text-[12px] text-[#2f4954]">
                           <div className="font-bold">Context</div>
-                          <div className="mt-1 text-[#6a7b84]">
+                          <pre className="mt-1 whitespace-pre-wrap break-words text-[#6a7b84]">
                             {JSON.stringify(rightNowContext, null, 2)}
-                          </div>
+                          </pre>
                         </div>
                       ) : null}
+
+                      <div className="mt-4 rounded-[18px] border border-[#eadfcf] bg-white p-3 text-[12px] text-[#2f4954]">
+                        <div className="font-bold">Latest Live AI Response</div>
+                        <div className="mt-1 text-[#6a7b84]">
+                          Updated: {formatTimestamp(lastLiveAt)}
+                        </div>
+                        {sourceLiveText.trim() ? (
+                          <pre className="mt-2 max-h-[180px] overflow-auto whitespace-pre-wrap break-words text-[12px] leading-relaxed text-[#2f4954]">
+                            {sourceLiveText}
+                          </pre>
+                        ) : (
+                          <div className="mt-2 text-[#6a7b84]">
+                            No live travel response yet.
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
 

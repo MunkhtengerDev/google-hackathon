@@ -2,19 +2,15 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft,
   Camera,
-  Copy,
-  ImagePlus,
-  Loader2,
   MapPin,
   MessageSquareText,
-  RefreshCw,
   Route,
   Send,
   Square,
   UploadCloud,
+  Loader2,
 } from "lucide-react";
 import { Card, ControlShell, SectionHeader } from "../../ui/primitives";
-import ResponsePlan from "../responsePlan/ResponsePlan";
 
 const API_BASE_URL = (
   import.meta.env.VITE_API_BASE_URL || "http://localhost:9008"
@@ -34,21 +30,6 @@ function formatBytes(bytes) {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
-}
-
-function formatTimestamp(value) {
-  if (!value) return "Not saved yet";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "Not saved yet";
-  return date.toLocaleString();
-}
-
-function countWords(text) {
-  if (!text) return 0;
-  return text
-    .trim()
-    .split(/\s+/)
-    .filter(Boolean).length;
 }
 
 function getCameraErrorMessage(error) {
@@ -149,50 +130,22 @@ async function reverseGeocode(latitude, longitude) {
   return typeof payload?.display_name === "string" ? payload.display_name : "";
 }
 
-function getStateChipClasses(state) {
-  if (state === "ready") {
-    return "border-[#9bd0b2] bg-[#e7f8ef] text-[#1e6a44]";
-  }
-  if (state === "loading" || state === "streaming") {
-    return "border-[#c9d8e2] bg-[#edf4f9] text-[#315669]";
-  }
-  if (state === "error") {
-    return "border-[#e8c2b9] bg-[#fff2ef] text-[#8b3f2d]";
-  }
-  return "border-[#d9ccb7] bg-[#fbf3e4] text-[#6a7a83]";
-}
-
-function buildPanelState({ isLoading, hasError, hasText, isStreaming = false }) {
-  if (isLoading) return { id: "loading", label: "Loading" };
-  if (isStreaming) return { id: "streaming", label: "Streaming" };
-  if (hasError) return { id: "error", label: "Issue" };
-  if (hasText) return { id: "ready", label: "Ready" };
-  return { id: "idle", label: "Empty" };
-}
-
 export default function AIImageRequestPage({
   token,
   user,
   onBackToPlanner,
-  initialTripPlan = "",
+  onGoTripResponse,
 }) {
   const fileInputRef = useRef(null);
   const videoRef = useRef(null);
   const streamRef = useRef(null);
 
-  const [tripPlanText, setTripPlanText] = useState(initialTripPlan || "");
-  const [tripPlanUpdatedAt, setTripPlanUpdatedAt] = useState(
-    initialTripPlan?.trim() ? new Date().toISOString() : ""
-  );
-  const [isTripPlanLoading, setIsTripPlanLoading] = useState(false);
-  const [tripPlanError, setTripPlanError] = useState("");
   const [imageDataUrl, setImageDataUrl] = useState("");
   const [sharedLocation, setSharedLocation] = useState(null);
   const [locationStatus, setLocationStatus] = useState("Location not shared");
   const [isSharingLocation, setIsSharingLocation] = useState(false);
   const [userPrompt, setUserPrompt] = useState("");
   const [resultText, setResultText] = useState("");
-  const [liveUpdatedAt, setLiveUpdatedAt] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState("");
   const [status, setStatus] = useState(
@@ -200,8 +153,6 @@ export default function AIImageRequestPage({
   );
   const [compressedBytes, setCompressedBytes] = useState(0);
   const [cameraOpen, setCameraOpen] = useState(false);
-  const [responseView, setResponseView] = useState("both");
-  const [copyNotice, setCopyNotice] = useState("");
 
   const hasSendInput =
     Boolean(imageDataUrl) ||
@@ -216,22 +167,6 @@ export default function AIImageRequestPage({
       : "image";
     return `${prefix} ready`;
   }, [imageDataUrl]);
-
-  const planWordCount = useMemo(() => countWords(tripPlanText), [tripPlanText]);
-  const liveWordCount = useMemo(() => countWords(resultText), [resultText]);
-
-  const planState = buildPanelState({
-    isLoading: isTripPlanLoading,
-    hasError: Boolean(tripPlanError),
-    hasText: Boolean(tripPlanText),
-  });
-
-  const liveState = buildPanelState({
-    isLoading: false,
-    hasError: Boolean(error),
-    hasText: Boolean(resultText),
-    isStreaming: isSending,
-  });
 
   const stopCamera = () => {
     if (streamRef.current) {
@@ -362,47 +297,6 @@ export default function AIImageRequestPage({
     }
   };
 
-  const loadLatestTripPlan = async () => {
-    if (!token) return;
-
-    setIsTripPlanLoading(true);
-    setTripPlanError("");
-
-    try {
-      const response = await fetch(
-        `${API_BASE_URL}/api/v1/trip-planning/latest`,
-        {
-          method: "GET",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
-      const payload = await response.json().catch(() => null);
-      if (response.status === 404) {
-        setTripPlanText("");
-        setTripPlanUpdatedAt("");
-        return;
-      }
-
-      if (!response.ok) {
-        throw new Error(payload?.message || "Failed to load saved trip plan");
-      }
-
-      setTripPlanText(
-        typeof payload?.data?.plan === "string" ? payload.data.plan : ""
-      );
-      setTripPlanUpdatedAt(
-        typeof payload?.data?.createdAt === "string" ? payload.data.createdAt : ""
-      );
-    } catch (fetchError) {
-      setTripPlanError(fetchError.message || "Unable to load trip plan");
-    } finally {
-      setIsTripPlanLoading(false);
-    }
-  };
-
   const shareLocation = async () => {
     setIsSharingLocation(true);
     setError("");
@@ -450,7 +344,6 @@ export default function AIImageRequestPage({
   const sendImage = async () => {
     if (!canSend) return;
 
-    setResponseView("live");
     setIsSending(true);
     setResultText("");
     setError("");
@@ -525,7 +418,6 @@ export default function AIImageRequestPage({
             setStatus("AI is generating...");
           } else if (event.type === "complete") {
             setStatus("Generation complete.");
-            setLiveUpdatedAt(new Date().toISOString());
           } else if (event.type === "history_saved") {
             setStatus("Done and saved to history.");
           } else if (event.type === "error") {
@@ -541,37 +433,7 @@ export default function AIImageRequestPage({
     }
   };
 
-  const handleCopyText = async (source, text) => {
-    if (!text.trim()) return;
-
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopyNotice(`${source} copied`);
-      window.setTimeout(() => {
-        setCopyNotice((current) => (current === `${source} copied` ? "" : current));
-      }, 1800);
-    } catch {
-      setError("Unable to copy text from this browser context.");
-    }
-  };
-
-  useEffect(() => {
-    if (typeof initialTripPlan === "string" && initialTripPlan.trim()) {
-      setTripPlanText(initialTripPlan);
-      setTripPlanUpdatedAt(new Date().toISOString());
-      setTripPlanError("");
-    }
-  }, [initialTripPlan]);
-
-  useEffect(() => {
-    if (initialTripPlan?.trim()) return;
-    loadLatestTripPlan();
-  }, [token]); // eslint-disable-line react-hooks/exhaustive-deps
-
   useEffect(() => () => stopCamera(), []);
-
-  const renderPlanPanel = responseView === "both" || responseView === "plan";
-  const renderLivePanel = responseView === "both" || responseView === "live";
 
   return (
     <main className="min-h-screen px-4 py-6 sm:px-6 sm:py-8">
@@ -580,17 +442,27 @@ export default function AIImageRequestPage({
           <Card>
             <SectionHeader
               icon={<ImagePlus className="h-5 w-5" />}
-              title="AI Image Assistant"
-              subtitle="Share location, upload image, capture from camera, or send a custom prompt."
+              title="Live Travel AI"
+              subtitle="Real-time help from image, location, and prompt."
               right={
-                <button
-                  type="button"
-                  onClick={onBackToPlanner}
-                  className="inline-flex items-center gap-2 rounded-full border border-[var(--line)] bg-[var(--surface)] px-3 py-1.5 text-xs font-semibold text-[#35505c] transition hover:border-[var(--line-strong)] hover:bg-[#fff8eb]"
-                >
-                  <ArrowLeft className="h-3.5 w-3.5" />
-                  Planner
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={onGoTripResponse}
+                    className="inline-flex items-center gap-2 rounded-full border border-[var(--line)] bg-[var(--surface)] px-3 py-1.5 text-xs font-semibold text-[#35505c] transition hover:border-[var(--line-strong)] hover:bg-[#fff8eb]"
+                  >
+                    <Route className="h-3.5 w-3.5" />
+                    Trip Response
+                  </button>
+                  <button
+                    type="button"
+                    onClick={onBackToPlanner}
+                    className="inline-flex items-center gap-2 rounded-full border border-[var(--line)] bg-[var(--surface)] px-3 py-1.5 text-xs font-semibold text-[#35505c] transition hover:border-[var(--line-strong)] hover:bg-[#fff8eb]"
+                  >
+                    <ArrowLeft className="h-3.5 w-3.5" />
+                    Planner
+                  </button>
+                </div>
               }
             />
 
@@ -757,193 +629,27 @@ export default function AIImageRequestPage({
         <section className="lg:col-span-7">
           <Card className="h-full">
             <SectionHeader
-              icon={<Route className="h-5 w-5" />}
-              title="AI Response Console"
-              subtitle="View your saved trip plan and live travel assistant output in one place."
+              icon={<Send className="h-5 w-5" />}
+              title="Live Travel AI Response"
+              subtitle={status}
             />
 
-            <div className="space-y-4">
-              <div className="grid grid-cols-3 gap-2 rounded-[16px] border border-[#ddd0bb] bg-[#fff7e9] p-1.5">
-                {[
-                  { id: "both", label: "Both" },
-                  { id: "plan", label: "Plan" },
-                  { id: "live", label: "Live" },
-                ].map((view) => (
-                  <button
-                    key={view.id}
-                    type="button"
-                    onClick={() => setResponseView(view.id)}
-                    className={[
-                      "rounded-[12px] px-3 py-2 text-xs font-semibold transition",
-                      responseView === view.id
-                        ? "bg-white text-[#204555] shadow-[0_6px_14px_rgba(15,23,42,0.08)]"
-                        : "text-[#6c7b83] hover:text-[#314f5c]",
-                    ].join(" ")}
-                  >
-                    {view.label}
-                  </button>
-                ))}
-              </div>
-
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="rounded-[16px] border border-[#ddd0bb] bg-[#fff7e9] px-3 py-2.5">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-xs font-semibold text-[#35505c]">Trip Plan</p>
-                    <span
-                      className={[
-                        "rounded-full border px-2 py-0.5 text-[11px] font-semibold",
-                        getStateChipClasses(planState.id),
-                      ].join(" ")}
-                    >
-                      {planState.label}
-                    </span>
-                  </div>
-                  <p className="mt-1 text-[11px] text-[#6f7f87]">
-                    {planWordCount > 0 ? `${planWordCount} words` : "No saved plan text"}
-                  </p>
+            <div className="min-h-[460px] rounded-[20px] border border-[var(--line)] bg-[var(--surface-soft)] p-4 sm:p-5">
+              {resultText ? (
+                <pre className="max-h-[560px] overflow-y-auto whitespace-pre-wrap break-words pr-1 text-[13px] leading-relaxed text-[#243944]">
+                  {resultText}
+                </pre>
+              ) : (
+                <div className="flex min-h-[420px] items-center justify-center text-center text-[13px] text-[#6a7b84]">
+                  {isSending
+                    ? "Streaming AI response..."
+                    : "No live response yet. Send location, image, or prompt."}
                 </div>
-
-                <div className="rounded-[16px] border border-[#ddd0bb] bg-[#fff7e9] px-3 py-2.5">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-xs font-semibold text-[#35505c]">Live Travel</p>
-                    <span
-                      className={[
-                        "rounded-full border px-2 py-0.5 text-[11px] font-semibold",
-                        getStateChipClasses(liveState.id),
-                      ].join(" ")}
-                    >
-                      {liveState.label}
-                    </span>
-                  </div>
-                  <p className="mt-1 text-[11px] text-[#6f7f87]">
-                    {liveWordCount > 0
-                      ? `${liveWordCount} words`
-                      : "No live response yet"}
-                  </p>
-                </div>
-              </div>
-
-              {copyNotice ? (
-                <p className="rounded-xl border border-[#c5dfcf] bg-[#edf9f2] px-3 py-2 text-xs font-semibold text-[#2f6047]">
-                  {copyNotice}
-                </p>
-              ) : null}
-
-              {renderPlanPanel ? (
-                <div className="rounded-[20px] border border-[var(--line)] bg-[var(--surface-soft)] p-4 sm:p-5">
-                  <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-semibold text-[#1d3440]">
-                        Trip Plan AI Response
-                      </p>
-                      <p className="mt-1 text-xs text-[#60717a]">
-                        Updated: {formatTimestamp(tripPlanUpdatedAt)}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={loadLatestTripPlan}
-                        disabled={isTripPlanLoading}
-                        className={[
-                          "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition",
-                          isTripPlanLoading
-                            ? "cursor-not-allowed border-[#d9ccb8] bg-[#f2e7d5] text-[#9a8f80]"
-                            : "border-[var(--line)] bg-white text-[#2f4954] hover:border-[var(--line-strong)] hover:bg-[#fff8eb]",
-                        ].join(" ")}
-                      >
-                        <RefreshCw
-                          className={[
-                            "h-3.5 w-3.5",
-                            isTripPlanLoading ? "animate-spin" : "",
-                          ].join(" ")}
-                        />
-                        Refresh
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleCopyText("Plan response", tripPlanText)}
-                        disabled={!tripPlanText.trim()}
-                        className={[
-                          "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition",
-                          tripPlanText.trim()
-                            ? "border-[var(--line)] bg-white text-[#2f4954] hover:border-[var(--line-strong)] hover:bg-[#fff8eb]"
-                            : "cursor-not-allowed border-[#d9ccb8] bg-[#f2e7d5] text-[#9a8f80]",
-                        ].join(" ")}
-                      >
-                        <Copy className="h-3.5 w-3.5" />
-                        Copy
-                      </button>
-                    </div>
-                  </div>
-
-                  {isTripPlanLoading ? (
-                    <div className="flex min-h-[230px] items-center justify-center text-center text-[13px] text-[#6a7b84]">
-                      Loading your saved trip plan...
-                    </div>
-                  ) : tripPlanText ? (
-                    <pre className="max-h-[480px] overflow-y-auto whitespace-pre-wrap break-words pr-1 text-[13px] leading-relaxed text-[#243944]">
-                      {tripPlanText}
-                    </pre>
-                  ) : (
-                    <div className="flex min-h-[230px] items-center justify-center text-center text-[13px] text-[#6a7b84]">
-                      No saved trip plan yet. Complete planner form to generate one.
-                    </div>
-                  )}
-
-                  {tripPlanError ? (
-                    <p className="mt-3 rounded-xl border border-[#e5c2b9] bg-[#fff2ef] px-3 py-2 text-sm text-[#8b3f2d]">
-                      {tripPlanError}
-                    </p>
-                  ) : null}
-                </div>
-              ) : null}
-
-              {renderLivePanel ? (
-                <div className="rounded-[20px] border border-[var(--line)] bg-[var(--surface-soft)] p-4 sm:p-5">
-                  <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-semibold text-[#1d3440]">
-                        Live Travel AI Response
-                      </p>
-                      <p className="mt-1 text-xs text-[#60717a]">
-                        {status} • Updated: {formatTimestamp(liveUpdatedAt)}
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => handleCopyText("Live response", resultText)}
-                      disabled={!resultText.trim()}
-                      className={[
-                        "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition",
-                        resultText.trim()
-                          ? "border-[var(--line)] bg-white text-[#2f4954] hover:border-[var(--line-strong)] hover:bg-[#fff8eb]"
-                          : "cursor-not-allowed border-[#d9ccb8] bg-[#f2e7d5] text-[#9a8f80]",
-                      ].join(" ")}
-                    >
-                      <Copy className="h-3.5 w-3.5" />
-                      Copy
-                    </button>
-                  </div>
-
-                  {resultText ? (
-                    <pre className="max-h-[480px] overflow-y-auto whitespace-pre-wrap break-words pr-1 text-[13px] leading-relaxed text-[#243944]">
-                      {resultText}
-                    </pre>
-                  ) : (
-                    <div className="flex min-h-[280px] items-center justify-center text-center text-[13px] text-[#6a7b84]">
-                      {isSending
-                        ? "Streaming AI response..."
-                        : "No live response yet. Send location, image, or prompt."}
-                    </div>
-                  )}
-                </div>
-              ) : null}
+              )}
             </div>
           </Card>
         </section>
       </div>
-      <ResponsePlan responseText={resultText} />
     </main>
   );
 }

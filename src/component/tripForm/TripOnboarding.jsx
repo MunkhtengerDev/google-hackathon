@@ -13,9 +13,7 @@ import MapVisualizer from "./visualizers/MapVisualizer.jsx";
 import CalendarVisualizer from "./visualizers/CalendarVisualizer.jsx";
 import SummaryVisualizer from "./visualizers/SummaryVisualizer.jsx";
 
-const API_BASE_URL = (
-  import.meta.env.VITE_API_BASE_URL || "http://localhost:9008"
-).replace(/\/$/, "");
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL.replace(/\/$/, "");
 
 const ALLOWED_INTERESTS = new Set([
   "history",
@@ -475,7 +473,8 @@ export default function TripOnboarding({ token, onCompleted, initialData }) {
       const planningPayload = await planningResponse.json().catch(() => null);
       if (!planningResponse.ok) {
         throw new Error(
-          planningPayload?.message || "Preferences saved, but trip plan generation failed"
+          planningPayload?.message ||
+            "Preferences saved, but trip plan generation failed"
         );
       }
 

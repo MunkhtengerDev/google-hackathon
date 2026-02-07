@@ -9,6 +9,7 @@ const GEMINI_MODEL =
   process.env.GEMINI_MODEL_TRIP_PLAN ||
   process.env.GEMINI_MODEL_STREAM ||
   "gemini-2.0-flash";
+const LIVE_HISTORY_TITLES = ["Live Travel Assistant", "Generated Content"];
 
 const genAI = GEMINI_KEY ? new GoogleGenAI({ apiKey: GEMINI_KEY }) : null;
 
@@ -229,6 +230,59 @@ exports.getLatestTripPlan = async (req, res) => {
     console.error("getLatestTripPlan error:", error.message);
     return res.status(500).json({
       message: "Failed to load latest trip plan",
+      error: error.message,
+    });
+  }
+};
+
+exports.getTripDashboardData = async (req, res) => {
+  try {
+    const userId = getAuthUserId(req);
+
+    const [latestPlan, latestLiveResponse] = await Promise.all([
+      History.findOne({
+        userId,
+        title: "Trip Plan Draft",
+      })
+        .sort({ _id: -1 })
+        .lean(),
+      History.findOne({
+        userId,
+        title: { $in: LIVE_HISTORY_TITLES },
+      })
+        .sort({ _id: -1 })
+        .lean(),
+    ]);
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        tripPlan: latestPlan?.detail
+          ? {
+              id: latestPlan._id,
+              title: latestPlan.title || "Trip Plan Draft",
+              response: latestPlan.detail,
+              createdAt: latestPlan.createdAt || null,
+            }
+          : null,
+        liveTravel: latestLiveResponse?.detail
+          ? {
+              id: latestLiveResponse._id,
+              title: latestLiveResponse.title || "Live Travel Assistant",
+              response: latestLiveResponse.detail,
+              createdAt: latestLiveResponse.createdAt || null,
+            }
+          : null,
+      },
+    });
+  } catch (error) {
+    if (error.statusCode) {
+      return res.status(error.statusCode).json({ message: error.message });
+    }
+
+    console.error("getTripDashboardData error:", error.message);
+    return res.status(500).json({
+      message: "Failed to load trip dashboard data",
       error: error.message,
     });
   }

@@ -3,11 +3,10 @@ import "./App.css";
 import SignInPage from "./component/auth/SignInPage";
 import TripOnboarding from "./component/tripForm/TripOnboarding";
 import AIImageRequestPage from "./component/ai/AIImageRequestPage";
+import TripResponsePage from "./component/responsePlan/TripResponsePage";
 import { clearAuth, loadAuth, saveAuth } from "./lib/auth";
 
-const API_BASE_URL = (
-  import.meta.env.VITE_API_BASE_URL || "http://localhost:9008"
-).replace(/\/$/, "");
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL.replace(/\/$/, "");
 
 function createDefaultPlannerData() {
   return {
@@ -76,7 +75,9 @@ function hydratePlannerData(preferences) {
       ...base.dates,
       start: normalizeText(questionnaire.dates?.start),
       end: normalizeText(questionnaire.dates?.end),
-      durationDays: Number(questionnaire.dates?.durationDays || base.dates.durationDays),
+      durationDays: Number(
+        questionnaire.dates?.durationDays || base.dates.durationDays
+      ),
       timingPriority: normalizeArray(questionnaire.dates?.timingPriority),
       seasonPref:
         normalizeText(questionnaire.dates?.seasonPref) || base.dates.seasonPref,
@@ -97,7 +98,10 @@ function hydratePlannerData(preferences) {
 
 function isPlannerComplete(data) {
   if (!data?.tripStatus) return false;
-  if (!data.context?.homeCountry?.trim() || !data.context?.departureCity?.trim()) {
+  if (
+    !data.context?.homeCountry?.trim() ||
+    !data.context?.departureCity?.trim()
+  ) {
     return false;
   }
 
@@ -115,12 +119,15 @@ function isPlannerComplete(data) {
 
   if (!hasDates) return false;
 
-  return Number(data.budget?.usdBudget || 0) > 0 && Boolean(data.budget?.currency?.trim());
+  return (
+    Number(data.budget?.usdBudget || 0) > 0 &&
+    Boolean(data.budget?.currency?.trim())
+  );
 }
 
 function App() {
   const [auth, setAuth] = useState(() => loadAuth());
-  const [screen, setScreen] = useState("onboarding");
+  const [screen, setScreen] = useState("trip-response");
   const [plannerInitialData, setPlannerInitialData] = useState(() =>
     createDefaultPlannerData()
   );
@@ -131,7 +138,7 @@ function App() {
   const handleSignInSuccess = (session) => {
     saveAuth(session);
     setAuth(session);
-    setScreen("onboarding");
+    setScreen("trip-response");
   };
 
   const handleSignOut = () => {
@@ -140,7 +147,7 @@ function App() {
     }
     clearAuth();
     setAuth(null);
-    setScreen("onboarding");
+    setScreen("trip-response");
     setPlannerInitialData(createDefaultPlannerData());
     setHydrateError("");
     setIsHydratingPreferences(false);
@@ -166,7 +173,9 @@ function App() {
 
         const payload = await response.json().catch(() => null);
         if (!response.ok) {
-          throw new Error(payload?.message || "Failed to load travel preferences");
+          throw new Error(
+            payload?.message || "Failed to load travel preferences"
+          );
         }
 
         const hydratedData = hydratePlannerData(payload?.data || null);
@@ -174,12 +183,14 @@ function App() {
 
         setPlannerInitialData(hydratedData);
         setTripPlanResponse("");
-        setScreen(isPlannerComplete(hydratedData) ? "ai" : "onboarding");
+        setScreen(isPlannerComplete(hydratedData) ? "trip-response" : "onboarding");
       } catch (error) {
         if (cancelled) return;
         setPlannerInitialData(createDefaultPlannerData());
         setScreen("onboarding");
-        setHydrateError(error.message || "Could not load saved travel preferences");
+        setHydrateError(
+          error.message || "Could not load saved travel preferences"
+        );
         setTripPlanResponse("");
       } finally {
         if (cancelled) return;
@@ -206,7 +217,8 @@ function App() {
             Loading your travel plan...
           </h1>
           <p className="mt-3 text-[14px] text-[var(--ink-soft)]">
-            Checking saved preferences to decide whether to open Planner or AI page.
+            Checking saved preferences to decide whether to open Planner or AI
+            page.
           </p>
         </div>
       </main>
@@ -248,14 +260,21 @@ function App() {
             if (typeof result?.tripPlan === "string") {
               setTripPlanResponse(result.tripPlan);
             }
-            setScreen("ai");
+            setScreen("trip-response");
           }}
         />
-      ) : (
+      ) : screen === "live-response" ? (
         <AIImageRequestPage
           token={auth.token}
           user={auth.user}
+          onGoTripResponse={() => setScreen("trip-response")}
+          onBackToPlanner={() => setScreen("onboarding")}
+        />
+      ) : (
+        <TripResponsePage
+          token={auth.token}
           initialTripPlan={tripPlanResponse}
+          onGoLiveResponse={() => setScreen("live-response")}
           onBackToPlanner={() => setScreen("onboarding")}
         />
       )}

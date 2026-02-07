@@ -10,9 +10,7 @@ import {
 import { Card } from "../../ui/primitives";
 
 const GOOGLE_IDENTITY_SCRIPT = "https://accounts.google.com/gsi/client";
-const API_BASE_URL = (
-  import.meta.env.VITE_API_BASE_URL || "http://localhost:9008"
-).replace(/\/$/, "");
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL.replace(/\/$/, "");
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
 function loadGoogleIdentity() {
