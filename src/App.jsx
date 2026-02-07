@@ -1,14 +1,6 @@
-import React from 'react'
-import './App.css'
-import TripOnboarding from './component/tripForm/TripOnboarding'
+import React from "react";
+import TripOnboarding from "./component/tripForm/TripOnboarding.jsx";
 
-function App() {
-
-  return (
-    <div className="App">
-      <TripOnboarding />
-    </div>
-  )
+export default function App() {
+  return <TripOnboarding />;
 }
-
-export default App

@@ -1,4 +1,3 @@
-// src/ui/primitives.jsx
 import React from "react";
 import { ui } from "./tokens";
 
@@ -29,24 +28,9 @@ export function SectionHeader({ icon, title, subtitle, right }) {
           </div>
           <h2 className={ui.text.title}>{title}</h2>
         </div>
-        {subtitle && <p className={[ui.text.subtitle, "mt-2"].join(" ")}>{subtitle}</p>}
+        {subtitle ? <p className={[ui.text.subtitle, "mt-2"].join(" ")}>{subtitle}</p> : null}
       </div>
       {right ? <div className="shrink-0">{right}</div> : null}
-    </div>
-  );
-}
-
-// Care/of vibe: thin, elegant progress
-export function ThinProgress({ value = 0 }) {
-  const v = Math.max(0, Math.min(100, value));
-  return (
-    <div className="w-full">
-      <div className="h-[6px] rounded-full bg-slate-200/70 overflow-hidden">
-        <div
-          className="h-full rounded-full bg-slate-900 transition-all duration-700"
-          style={{ width: `${v}%` }}
-        />
-      </div>
     </div>
   );
 }
@@ -56,8 +40,8 @@ export function Field({ label, hint, right, children }) {
     <div className="space-y-2">
       <div className="flex items-end justify-between gap-3">
         <div className="min-w-0">
-          {label && <div className={ui.text.label}>{label}</div>}
-          {hint && <div className={[ui.text.helper, "mt-1"].join(" ")}>{hint}</div>}
+          {label ? <div className={ui.text.label}>{label}</div> : null}
+          {hint ? <div className={[ui.text.helper, "mt-1"].join(" ")}>{hint}</div> : null}
         </div>
         {right ? <div className="shrink-0">{right}</div> : null}
       </div>
@@ -127,14 +111,19 @@ export function OptionCard({ active, onClick, title, description, icon, meta }) 
             {icon}
           </div>
           <div className="min-w-0">
-            <div className={["text-[16px] font-semibold tracking-[-0.01em]", active ? "text-white" : "text-slate-900"].join(" ")}>
+            <div
+              className={[
+                "text-[16px] font-semibold tracking-[-0.01em]",
+                active ? "text-white" : "text-slate-900",
+              ].join(" ")}
+            >
               {title}
             </div>
-            {description && (
+            {description ? (
               <div className={["mt-1 text-[13px] leading-relaxed", active ? "text-white/80" : "text-slate-600"].join(" ")}>
                 {description}
               </div>
-            )}
+            ) : null}
           </div>
         </div>
         {meta ? (
