@@ -3,15 +3,25 @@ import { User, Users, Baby, Heart } from "lucide-react";
 import { Card, SectionHeader, ControlShell, Field } from "../../../ui/primitives";
 
 const TYPES = [
-  { id: "solo", label: "Solo", icon: User },
-  { id: "couple", label: "Couple", icon: Heart },
-  { id: "family", label: "Family", icon: Baby },
-  { id: "friends", label: "Friends/Group", icon: Users },
+  { id: "solo", label: "Solo", icon: User, defaultCount: 1 },
+  { id: "couple", label: "Couple", icon: Heart, defaultCount: 2 },
+  { id: "family", label: "Family", icon: Baby, defaultCount: 3 },
+  { id: "friends", label: "Friends/Group", icon: Users, defaultCount: 4 },
 ];
 
 export default function GroupSection({ value, onChange }) {
   const isFamily = value.who === "family";
   
+  const handleTypeSelect = (typeObj) => {
+    // Automatically set reasonable defaults when type changes
+    onChange({ 
+        ...value, 
+        who: typeObj.id,
+        totalPeople: typeObj.defaultCount,
+        adults: typeObj.id === 'couple' ? 2 : typeObj.id === 'solo' ? 1 : value.adults 
+    });
+  };
+
   return (
     <Card>
       <SectionHeader title="Group Composition" subtitle="Who is coming along?" />
@@ -23,7 +33,7 @@ export default function GroupSection({ value, onChange }) {
           return (
             <button
               key={t.id}
-              onClick={() => onChange({ ...value, who: t.id })}
+              onClick={() => handleTypeSelect(t)}
               className={`
                 flex flex-col items-center justify-center p-4 rounded-xl border-2 transition-all gap-2
                 ${active ? "border-black bg-gray-50" : "border-gray-100 bg-white hover:border-gray-200"}
@@ -56,17 +66,14 @@ export default function GroupSection({ value, onChange }) {
                   type="number"
                   min="0"
                   placeholder="0"
-                  onChange={(e) => {
-                    // Simple placeholder logic for children count if you want to store it
-                    // The payload structure expects `childrenAges` array, but a count is fine for UI simplicity
-                  }}
                   className="w-full bg-transparent outline-none font-semibold"
+                  // Bind this to your actual state if you have a field for child count
                 />
              </ControlShell>
           </Field>
         )}
       </div>
-      
+     
       {isFamily && (
         <p className="mt-4 text-sm text-gray-500 bg-orange-50 p-3 rounded-lg border border-orange-100">
           We will prioritize family-friendly hotels and pacing.
