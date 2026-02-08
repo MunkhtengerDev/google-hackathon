@@ -1,0 +1,54 @@
+import React from "react";
+import { Copy, Download } from "lucide-react";
+import { Card } from "../../../ui/primitives";
+
+export default function ResponsePlanHeaderCard({ sourcePlanText }) {
+  return (
+    <Card>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-[13px] font-bold text-[#2f4954]">
+            Interactive Response View
+          </div>
+          <div className="mt-0.5 text-[12px] text-[#6a7b84]">
+            Parsed from your AI text (sections, itinerary, and budget).
+          </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() =>
+              sourcePlanText.trim()
+                ? navigator.clipboard?.writeText(sourcePlanText)
+                : null
+            }
+            className="inline-flex items-center gap-2 rounded-full border border-[var(--line)] bg-white px-3.5 py-2 text-xs font-semibold text-[#2f4954] transition hover:border-[var(--line-strong)] hover:bg-[#fff8eb]"
+          >
+            <Copy className="h-3.5 w-3.5" />
+            Copy Text
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              const blob = new Blob([sourcePlanText], {
+                type: "text/plain;charset=utf-8",
+              });
+              const url = URL.createObjectURL(blob);
+              const link = document.createElement("a");
+              link.href = url;
+              link.download = "trip-plan.txt";
+              link.click();
+              URL.revokeObjectURL(url);
+            }}
+            className="inline-flex items-center gap-2 rounded-full border border-[var(--line)] bg-[#fff8eb] px-3.5 py-2 text-xs font-semibold text-[#2f4954] transition hover:border-[var(--line-strong)] hover:bg-[#ffeecd]"
+          >
+            <Download className="h-3.5 w-3.5" />
+            Export
+          </button>
+        </div>
+      </div>
+    </Card>
+  );
+}
