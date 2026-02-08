@@ -26,9 +26,7 @@ import MapVisualizer from "./visualizers/MapVisualizer.jsx";
 import CalendarVisualizer from "./visualizers/CalendarVisualizer.jsx";
 import SummaryVisualizer from "./visualizers/SummaryVisualizer.jsx";
 
-const API_BASE_URL = (
-  import.meta.env.VITE_API_BASE_URL || "http://localhost:9008"
-).replace(/\/$/, "");
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
 
 // --- 1. Constants & Helpers ---
 
@@ -82,19 +80,22 @@ const ALL_STEPS = [
   {
     key: "food",
     title: "Food Preferences",
-    subtitle: "Tell us what you want to eat (or avoid) for better recommendations.",
+    subtitle:
+      "Tell us what you want to eat (or avoid) for better recommendations.",
     visual: "summary",
   },
   {
     key: "mobility",
     title: "Mobility & Movement",
-    subtitle: "Optimize routes and hotel placement based on your comfort range.",
+    subtitle:
+      "Optimize routes and hotel placement based on your comfort range.",
     visual: "map",
   },
   {
     key: "style",
     title: "Travel Style & Interests",
-    subtitle: "Pick interests and describe your taste for deeper personalization.",
+    subtitle:
+      "Pick interests and describe your taste for deeper personalization.",
     visual: "summary",
   },
   // --- Booked Only Steps ---
@@ -241,7 +242,8 @@ function isStepComplete(stepKey, data) {
       return (
         (data.destination.countries?.length || 0) +
           (data.destination.cities?.length || 0) +
-          (data.destination.regions?.length || 0) > 0
+          (data.destination.regions?.length || 0) >
+        0
       );
     case "season":
       if (data.tripStatus === "booked") {
@@ -312,7 +314,9 @@ function deriveMobilityPreference(questionnaire) {
   const transportModes = normalizeStringArray(
     questionnaire.mobility?.preferredTransport
   );
-  const mobilityNotes = normalizeText(questionnaire.mobility?.notes).toLowerCase();
+  const mobilityNotes = normalizeText(
+    questionnaire.mobility?.notes
+  ).toLowerCase();
 
   const hasLimitedMobilityHints =
     mobilityNotes.includes("wheelchair") ||
@@ -365,7 +369,9 @@ function buildPreferencesPayload(data) {
       notes: normalizeText(data.food?.notes),
     },
     mobility: {
-      preferredTransport: normalizeStringArray(data.mobility?.preferredTransport),
+      preferredTransport: normalizeStringArray(
+        data.mobility?.preferredTransport
+      ),
       comfortRange: normalizeText(data.mobility?.comfortRange) || "30",
       notes: normalizeText(data.mobility?.notes),
     },
@@ -721,7 +727,8 @@ function buildPreferencesPayload(data) {
       ALLOWED_INTERESTS.has(item)
     ),
     mobilityPreference: deriveMobilityPreference(questionnaire),
-    foodPreferences: normalizedDiets.length > 0 ? normalizedDiets : ["no_preference"],
+    foodPreferences:
+      normalizedDiets.length > 0 ? normalizedDiets : ["no_preference"],
 
     // The full detailed object
     questionnaire: {
@@ -750,7 +757,7 @@ export default function TripOnboarding({ token, onCompleted, initialData }) {
   );
   const [step, setStep] = useState(0);
   const [rightQuery, setRightQuery] = useState("");
-  
+
   // Transitions
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [transitionMsg, setTransitionMsg] = useState("");
@@ -836,14 +843,7 @@ export default function TripOnboarding({ token, onCompleted, initialData }) {
     }
 
     return <SummaryVisualizer data={data} />;
-  }, [
-    stepConfig,
-    rightQuery,
-    defaultMapQuery,
-    mapsApiKey,
-    markers,
-    data,
-  ]);
+  }, [stepConfig, rightQuery, defaultMapQuery, mapsApiKey, markers, data]);
 
   // --- Handlers ---
 
@@ -872,6 +872,7 @@ export default function TripOnboarding({ token, onCompleted, initialData }) {
     setSaveError("");
 
     try {
+      setTransitionMsg("Saving your preferences...");
       const preferencesPayload = buildPreferencesPayload(data);
 
       // 1. Save Preferences
@@ -887,6 +888,7 @@ export default function TripOnboarding({ token, onCompleted, initialData }) {
       if (!response.ok) throw new Error("Failed to save preferences");
 
       // 2. Generate Trip Plan
+      setTransitionMsg("Generating your personalized itinerary...");
       const planningResponse = await fetch(
         `${API_BASE_URL}/api/v1/trip-planning/generate`,
         {
@@ -903,12 +905,14 @@ export default function TripOnboarding({ token, onCompleted, initialData }) {
         throw new Error("Preferences saved, but generation failed");
       }
 
+      setTransitionMsg("Finalizing your trip dashboard...");
       onCompleted?.({
         plannerData: mergePlannerData(defaultState(), data),
         tripPlan: planningPayload?.data?.plan,
       });
     } catch (error) {
       setSaveError(error.message || "Unable to save preferences");
+      setTransitionMsg("Could not generate plan. Please review and retry.");
       setIsSaving(false);
     }
   };
@@ -940,6 +944,7 @@ export default function TripOnboarding({ token, onCompleted, initialData }) {
   const handleTransitionDone = () => {
     if (isSaving) return;
     setIsTransitioning(false);
+    if (isLastStep) return;
     setStep((s) => s + 1);
     setRightQuery("");
   };

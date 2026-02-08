@@ -1,5 +1,30 @@
 const mongoose = require("mongoose");
+const jwt = require("jsonwebtoken");
 const History = require("../models/History");
+
+const normalizeText = (value = "") => String(value || "").trim();
+const normalizeTags = (value) =>
+  Array.isArray(value)
+    ? value.map((item) => normalizeText(item)).filter(Boolean).slice(0, 12)
+    : [];
+
+const getAuthUserId = (req) => {
+  const token = req.headers.authorization?.split(" ")[1];
+  if (!token) {
+    const err = new Error("No token provided");
+    err.statusCode = 401;
+    throw err;
+  }
+
+  const decoded = jwt.verify(token, process.env.JWT_SECRET);
+  if (!decoded?.id) {
+    const err = new Error("Invalid token");
+    err.statusCode = 401;
+    throw err;
+  }
+
+  return decoded.id;
+};
 
 exports.getHistoryByUserId = async (req, res) => {
   try {
@@ -114,6 +139,85 @@ exports.deleteHistoryById = async (req, res) => {
     res.status(500).json({
       success: false,
       error: err.message,
+    });
+  }
+};
+
+exports.getMemories = async (req, res) => {
+  try {
+    const userId = getAuthUserId(req);
+    const limitRaw = Number(req.query.limit || 60);
+    const limit = Number.isFinite(limitRaw)
+      ? Math.max(1, Math.min(120, limitRaw))
+      : 60;
+
+    const memories = await History.find({
+      userId,
+      driveFileId: { $exists: true, $ne: "" },
+    })
+      .sort({ _id: -1 })
+      .limit(limit)
+      .lean();
+
+    return res.status(200).json({
+      success: true,
+      data: memories,
+    });
+  } catch (err) {
+    const statusCode = err.statusCode || 500;
+    return res.status(statusCode).json({
+      success: false,
+      message: err.message || "Failed to fetch memories",
+    });
+  }
+};
+
+exports.createMemory = async (req, res) => {
+  try {
+    const userId = getAuthUserId(req);
+
+    const title = normalizeText(req.body?.title) || "Trip Memory";
+    const detail = normalizeText(req.body?.detail);
+    const dayLabel = normalizeText(req.body?.dayLabel);
+    const image = normalizeText(req.body?.image);
+    const driveFileId = normalizeText(req.body?.driveFileId);
+    const driveWebViewLink = normalizeText(req.body?.driveWebViewLink);
+    const driveDownloadLink = normalizeText(req.body?.driveDownloadLink);
+    const driveThumbnailLink = normalizeText(req.body?.driveThumbnailLink);
+    const drivePublicImageUrl = normalizeText(req.body?.drivePublicImageUrl);
+    const tags = normalizeTags(req.body?.tags);
+
+    if (!driveFileId) {
+      return res.status(400).json({
+        success: false,
+        message: "driveFileId is required.",
+      });
+    }
+
+    const created = await History.create({
+      userId: [userId],
+      title,
+      detail,
+      dayLabel,
+      tags,
+      source: "google-drive",
+      image: image || drivePublicImageUrl || driveThumbnailLink,
+      driveFileId,
+      driveWebViewLink,
+      driveDownloadLink,
+      driveThumbnailLink,
+      drivePublicImageUrl,
+    });
+
+    return res.status(201).json({
+      success: true,
+      data: created,
+    });
+  } catch (err) {
+    const statusCode = err.statusCode || 500;
+    return res.status(statusCode).json({
+      success: false,
+      message: err.message || "Failed to create memory entry",
     });
   }
 };

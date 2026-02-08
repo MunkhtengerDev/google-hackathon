@@ -1,11 +1,9 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   DollarSign,
-  Route,
-  ShieldCheck,
+  MapPin,
   Sparkles,
   Timer,
-  TimerIcon,
 } from "lucide-react";
 import { Card } from "../../ui/primitives";
 
@@ -153,15 +151,15 @@ export default function SignInPage({ onSuccess }) {
             </h1>
 
             <p className="mt-5 max-w-[560px] text-[16px] leading-relaxed text-[var(--ink-soft)]">
-              Sign in once and continue your journey with autosave, live map
+              Sign in once and continue your journey with autosave, smart plan
               previews, and seamless backend-authenticated sessions.
             </p>
 
             <div className="mt-8 grid gap-3 sm:grid-cols-3">
               <FeatureCard
-                icon={<Route className="h-4 w-4" />}
-                title="Live Route UX"
-                text="Destinations instantly reflect in your map workspace."
+                icon={<MapPin className="h-4 w-4" />}
+                title="Smart Plan Preview"
+                text="Each plan highlights destination photos and Google Maps links."
               />
               <FeatureCard
                 icon={<Timer className="h-4 w-4" />}
@@ -170,8 +168,8 @@ export default function SignInPage({ onSuccess }) {
               />
               <FeatureCard
                 icon={<DollarSign className="h-4 w-4" />}
-                title="Fast Continue"
-                text="Planner state and auth restore instantly on refresh."
+                title="Budget Signals"
+                text="Keep spending guidance visible while refining your itinerary."
               />
             </div>
           </div>
