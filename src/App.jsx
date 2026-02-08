@@ -2,7 +2,6 @@ import React, { useEffect, useState } from "react";
 import "./App.css";
 import SignInPage from "./component/auth/SignInPage";
 import TripOnboarding from "./component/tripForm/TripOnboarding";
-import AIImageRequestPage from "./component/ai/AIImageRequestPage";
 import TripResponsePage from "./component/responsePlan/TripResponsePage";
 import { clearAuth, loadAuth, saveAuth } from "./lib/auth";
 
@@ -447,18 +446,11 @@ function App() {
             setScreen("trip-response");
           }}
         />
-      ) : screen === "live-response" ? (
-        <AIImageRequestPage
-          token={auth.token}
-          user={auth.user}
-          onGoTripResponse={() => setScreen("trip-response")}
-          onBackToPlanner={() => setScreen("onboarding")}
-        />
       ) : (
         <TripResponsePage
           token={auth.token}
+          user={auth.user}
           initialTripPlan={tripPlanResponse}
-          onGoLiveResponse={() => setScreen("live-response")}
           onBackToPlanner={() => setScreen("onboarding")}
         />
       )}

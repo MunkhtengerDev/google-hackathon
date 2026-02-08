@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { ArrowLeft, Compass, Route } from "lucide-react";
+import { ArrowLeft, Compass } from "lucide-react";
 import { Card, SectionHeader } from "../../ui/primitives";
 import ResponsePlan from "./ResponsePlan";
 
@@ -9,18 +9,60 @@ const API_BASE_URL = (
 
 export default function TripResponsePage({
   token,
+  user,
   initialTripPlan = "",
   onBackToPlanner,
-  onGoLiveResponse,
 }) {
   const [planResponse, setPlanResponse] = useState(initialTripPlan || "");
-  const [liveResponse, setLiveResponse] = useState("");
   const [lastPlanAt, setLastPlanAt] = useState(
     initialTripPlan?.trim() ? new Date().toISOString() : ""
   );
-  const [lastLiveAt, setLastLiveAt] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [loadError, setLoadError] = useState("");
+  const [guideCompanion, setGuideCompanion] = useState(null);
+  const [guideLoading, setGuideLoading] = useState(false);
+  const [guideError, setGuideError] = useState("");
+
+  const loadGuideCompanion = useCallback(async () => {
+    if (!token) return;
+
+    setGuideLoading(true);
+    setGuideError("");
+
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/v1/trip-planning/guide-companion`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      const payload = await response.json().catch(() => null);
+
+      if (response.status === 404) {
+        setGuideCompanion(null);
+        setGuideError(
+          "Guide Companion needs a generated trip plan first. Generate or refresh your plan."
+        );
+        return;
+      }
+
+      if (!response.ok) {
+        throw new Error(
+          payload?.message || "Failed to load guide companion insights"
+        );
+      }
+
+      setGuideCompanion(payload?.data || null);
+    } catch (error) {
+      setGuideError(error.message || "Unable to load guide companion insights");
+    } finally {
+      setGuideLoading(false);
+    }
+  }, [token]);
 
   const loadTripResponses = useCallback(async () => {
     if (!token) return;
@@ -43,19 +85,12 @@ export default function TripResponsePage({
 
       if (dashboardResponse.ok) {
         const planData = dashboardPayload?.data?.tripPlan || null;
-        const liveData = dashboardPayload?.data?.liveTravel || null;
 
         setPlanResponse(
           typeof planData?.response === "string" ? planData.response : ""
         );
-        setLiveResponse(
-          typeof liveData?.response === "string" ? liveData.response : ""
-        );
         setLastPlanAt(
           typeof planData?.createdAt === "string" ? planData.createdAt : ""
-        );
-        setLastLiveAt(
-          typeof liveData?.createdAt === "string" ? liveData.createdAt : ""
         );
         return;
       }
@@ -88,21 +123,25 @@ export default function TripResponsePage({
             ? latestPayload.data.createdAt
             : ""
         );
-        setLiveResponse("");
-        setLastLiveAt("");
         setLoadError(
           "Dashboard API not available yet on this backend instance. Showing trip plan only."
         );
         return;
       }
 
-      throw new Error(dashboardPayload?.message || "Failed to load trip dashboard");
+      throw new Error(
+        dashboardPayload?.message || "Failed to load trip dashboard"
+      );
     } catch (error) {
       setLoadError(error.message || "Unable to load trip responses");
     } finally {
       setIsLoading(false);
     }
   }, [token]);
+
+  const refreshDashboard = useCallback(async () => {
+    await Promise.all([loadTripResponses(), loadGuideCompanion()]);
+  }, [loadGuideCompanion, loadTripResponses]);
 
   useEffect(() => {
     if (typeof initialTripPlan === "string" && initialTripPlan.trim()) {
@@ -115,6 +154,10 @@ export default function TripResponsePage({
     loadTripResponses();
   }, [loadTripResponses]);
 
+  useEffect(() => {
+    loadGuideCompanion();
+  }, [loadGuideCompanion]);
+
   return (
     <main className="min-h-screen px-4 py-6 sm:px-6 sm:py-8">
       <div className="mx-auto max-w-[1320px] space-y-6">
@@ -125,14 +168,6 @@ export default function TripResponsePage({
             subtitle="Dedicated dashboard for your saved trip-planning AI output."
             right={
               <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={onGoLiveResponse}
-                  className="inline-flex items-center gap-2 rounded-full border border-[var(--line)] bg-[var(--surface)] px-3 py-1.5 text-xs font-semibold text-[#35505c] transition hover:border-[var(--line-strong)] hover:bg-[#fff8eb]"
-                >
-                  <Route className="h-3.5 w-3.5" />
-                  Live Travel AI
-                </button>
                 <button
                   type="button"
                   onClick={onBackToPlanner}
@@ -148,14 +183,17 @@ export default function TripResponsePage({
 
         <ResponsePlan
           title="Trip Dashboard"
-          subtitle="Analyze your trip plan and latest live AI output in one dashboard."
+          subtitle="Analyze your saved trip plan in an interactive dashboard."
           planResponseText={planResponse}
-          liveResponseText={liveResponse}
           isLoading={isLoading}
           loadError={loadError}
           lastPlanAt={lastPlanAt}
-          lastLiveAt={lastLiveAt}
-          onRefresh={loadTripResponses}
+          guideCompanion={guideCompanion}
+          guideLoading={guideLoading}
+          guideError={guideError}
+          token={token}
+          user={user}
+          onRefresh={refreshDashboard}
         />
       </div>
     </main>

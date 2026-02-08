@@ -1,21 +1,21 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
-  ArrowLeft,
   Camera,
   ImagePlus,
+  Loader2,
   MapPin,
   MessageSquareText,
-  Route,
   Send,
   Square,
   UploadCloud,
-  Loader2,
+  X,
 } from "lucide-react";
 import { Card, ControlShell, SectionHeader } from "../../ui/primitives";
+import LiveResponseRenderer from "../ai/LiveResponseRenderer";
 
-import LiveResponseRenderer from "./LiveResponseRenderer";
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+const API_BASE_URL = (
+  import.meta.env.VITE_API_BASE_URL || "http://localhost:9008"
+).replace(/\/$/, "");
 
 function fileToDataUrl(file) {
   return new Promise((resolve, reject) => {
@@ -36,7 +36,7 @@ function formatBytes(bytes) {
 function getCameraErrorMessage(error) {
   const name = error?.name || "";
   if (name === "NotAllowedError" || name === "SecurityError") {
-    return "Camera permission denied. Allow camera access in your browser/site settings.";
+    return "Camera permission denied. Allow camera access in browser/site settings.";
   }
   if (name === "NotFoundError" || name === "DevicesNotFoundError") {
     return "No camera device was found on this machine.";
@@ -65,7 +65,7 @@ async function attachStreamToVideo(videoElement, stream) {
       cleanup();
       reject(
         new Error(
-          "Camera started but no video frames were received. Check browser camera permission and system privacy settings."
+          "Camera started but no video frames were received. Check camera permissions."
         )
       );
     }, 3500);
@@ -86,9 +86,7 @@ async function attachStreamToVideo(videoElement, stream) {
   await videoElement.play();
 
   if (!videoElement.videoWidth || !videoElement.videoHeight) {
-    throw new Error(
-      "Camera preview is still not ready. Please retry after allowing camera access."
-    );
+    throw new Error("Camera preview is still not ready. Please retry.");
   }
 }
 
@@ -142,9 +140,7 @@ async function reverseGeocode(latitude, longitude) {
   url.searchParams.set("lon", String(longitude));
 
   const response = await fetch(url.toString(), {
-    headers: {
-      Accept: "application/json",
-    },
+    headers: { Accept: "application/json" },
   });
 
   if (!response.ok) {
@@ -155,11 +151,17 @@ async function reverseGeocode(latitude, longitude) {
   return typeof payload?.display_name === "string" ? payload.display_name : "";
 }
 
-export default function AIImageRequestPage({
+const QUICK_PROMPTS = [
+  "I am at this location now. Build me a 3-hour plan with food and one hidden gem.",
+  "What should I do right now nearby with minimal walking?",
+  "Recommend the best sunset spot and timing from here.",
+  "Find one must-try local dish near me and the best place for it.",
+];
+
+export default function RightNowLiveAssistant({
   token,
   user,
-  onBackToPlanner,
-  onGoTripResponse,
+  rightNowContext,
 }) {
   const fileInputRef = useRef(null);
   const videoRef = useRef(null);
@@ -179,11 +181,15 @@ export default function AIImageRequestPage({
   const [compressedBytes, setCompressedBytes] = useState(0);
   const [cameraOpen, setCameraOpen] = useState(false);
 
+  const userId = useMemo(
+    () => String(user?.id || user?._id || "").trim(),
+    [user]
+  );
   const hasSendInput =
     Boolean(imageDataUrl) ||
     Boolean(sharedLocation) ||
     Boolean(userPrompt.trim());
-  const canSend = hasSendInput && Boolean(user?.id) && !isSending;
+  const canSend = hasSendInput && Boolean(userId) && !isSending;
 
   const previewLabel = useMemo(() => {
     if (!imageDataUrl) return "No image selected";
@@ -369,18 +375,18 @@ export default function AIImageRequestPage({
     }
   };
 
-  const sendImage = async () => {
+  const sendLiveRequest = async () => {
     if (!canSend) return;
 
     setIsSending(true);
     setResultText("");
     setError("");
     setCompressedBytes(0);
-    setStatus("Sending request to Gemini...");
+    setStatus("Sending request to Live AI...");
 
     try {
       const requestBody = {
-        userId: user.id,
+        userId,
         language: navigator.language || "English",
         ...(imageDataUrl ? { imageBase64: imageDataUrl } : {}),
         ...(sharedLocation || {}),
@@ -398,7 +404,7 @@ export default function AIImageRequestPage({
 
       if (!response.ok) {
         const bodyText = await response.text().catch(() => "");
-        throw new Error(bodyText || "Image request failed");
+        throw new Error(bodyText || "Live request failed");
       }
 
       if (!response.body) {
@@ -464,221 +470,235 @@ export default function AIImageRequestPage({
   useEffect(() => () => stopCamera(), []);
 
   return (
-    <main className="min-h-screen px-4 py-6 sm:px-6 sm:py-8">
-      <div className="mx-auto grid max-w-[1280px] grid-cols-1 gap-6 lg:grid-cols-12">
-        <section className="lg:col-span-5">
-          <Card>
-            <SectionHeader
-              icon={<ImagePlus className="h-5 w-5" />}
-              title="Live Travel AI"
-              subtitle="Real-time help from image, location, and prompt."
-              right={
-                <>
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
+      <div className="space-y-4 lg:col-span-5">
+        <Card>
+          <SectionHeader
+            icon={<ImagePlus className="h-5 w-5" />}
+            title="Live Travel AI"
+            subtitle="Send location, image, and prompt for instant nearby guidance."
+          />
+
+          <div className="space-y-4">
+            <ControlShell className="bg-white">
+              <div className="flex flex-wrap items-center gap-2">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleSelectFile}
+                />
+
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="inline-flex items-center gap-2 rounded-full border border-[var(--line)] bg-[#fff8eb] px-3.5 py-2 text-xs font-semibold text-[#2f4954] transition hover:border-[var(--line-strong)] hover:bg-[#ffeecd]"
+                >
+                  <UploadCloud className="h-3.5 w-3.5" />
+                  Upload Image
+                </button>
+
+                {!cameraOpen ? (
                   <button
                     type="button"
-                    onClick={onGoTripResponse}
-                    className="inline-flex items-center gap-2 rounded-full border border-[var(--line)] bg-[var(--surface)] px-3 py-1.5 text-xs font-semibold text-[#35505c] transition hover:border-[var(--line-strong)] hover:bg-[#fff8eb]"
+                    onClick={startCamera}
+                    className="inline-flex items-center gap-2 rounded-full border border-[var(--line)] bg-white px-3.5 py-2 text-xs font-semibold text-[#2f4954] transition hover:border-[var(--line-strong)] hover:bg-[#fff8eb]"
                   >
-                    <Route className="h-3.5 w-3.5" />
-                    Trip Response
+                    <Camera className="h-3.5 w-3.5" />
+                    Open Camera
                   </button>
-
+                ) : (
                   <button
                     type="button"
-                    onClick={onBackToPlanner}
-                    className="inline-flex items-center gap-2 rounded-full border border-[var(--line)] bg-[var(--surface)] px-3 py-1.5 text-xs font-semibold text-[#35505c] transition hover:border-[var(--line-strong)] hover:bg-[#fff8eb]"
+                    onClick={stopCamera}
+                    className="inline-flex items-center gap-2 rounded-full border border-[#d6c7b0] bg-[#fff4e0] px-3.5 py-2 text-xs font-semibold text-[#5b4728] transition hover:bg-[#ffebcb]"
                   >
-                    <ArrowLeft className="h-3.5 w-3.5" />
-                    Planner
+                    <Square className="h-3.5 w-3.5" />
+                    Stop Camera
                   </button>
-                </>
-              }
-            />
+                )}
 
-            <div className="space-y-4">
-              <ControlShell className="bg-white">
-                <div className="flex flex-wrap items-center gap-2">
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={handleSelectFile}
-                  />
-
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="inline-flex items-center gap-2 rounded-full border border-[var(--line)] bg-[#fff8eb] px-3.5 py-2 text-xs font-semibold text-[#2f4954] transition hover:border-[var(--line-strong)] hover:bg-[#ffeecd]"
-                  >
-                    <UploadCloud className="h-3.5 w-3.5" />
-                    Upload Image
-                  </button>
-
-                  {!cameraOpen ? (
-                    <button
-                      type="button"
-                      onClick={startCamera}
-                      className="inline-flex items-center gap-2 rounded-full border border-[var(--line)] bg-white px-3.5 py-2 text-xs font-semibold text-[#2f4954] transition hover:border-[var(--line-strong)] hover:bg-[#fff8eb]"
-                    >
-                      <Camera className="h-3.5 w-3.5" />
-                      Open Camera
-                    </button>
+                <button
+                  type="button"
+                  onClick={shareLocation}
+                  disabled={isSharingLocation}
+                  className={[
+                    "inline-flex items-center gap-2 rounded-full border px-3.5 py-2 text-xs font-semibold transition",
+                    isSharingLocation
+                      ? "cursor-not-allowed border-[#d9ccb8] bg-[#f2e7d5] text-[#9a8f80]"
+                      : "border-[var(--line)] bg-white text-[#2f4954] hover:border-[var(--line-strong)] hover:bg-[#fff8eb]",
+                  ].join(" ")}
+                >
+                  {isSharingLocation ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
                   ) : (
-                    <button
-                      type="button"
-                      onClick={stopCamera}
-                      className="inline-flex items-center gap-2 rounded-full border border-[#d6c7b0] bg-[#fff4e0] px-3.5 py-2 text-xs font-semibold text-[#5b4728] transition hover:bg-[#ffebcb]"
-                    >
-                      <Square className="h-3.5 w-3.5" />
-                      Stop Camera
-                    </button>
+                    <MapPin className="h-3.5 w-3.5" />
                   )}
-                </div>
-              </ControlShell>
+                  {isSharingLocation ? "Sharing..." : "Share Location"}
+                </button>
+              </div>
+            </ControlShell>
 
-              {cameraOpen ? (
-                <Card className="border-[#d9ccb7] bg-[#fff9ed] p-4">
-                  <div className="overflow-hidden rounded-[18px] border border-[#d8ccb7] bg-black">
-                    <video
-                      ref={videoRef}
-                      className="aspect-video w-full object-cover"
-                      playsInline
-                      muted
-                      autoPlay
-                    />
-                  </div>
-                  <div className="mt-3">
-                    <button
-                      type="button"
-                      onClick={capturePhoto}
-                      className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-[#0d6a66] to-[#084744] px-4 py-2 text-xs font-semibold text-white shadow-[0_10px_24px_rgba(12,95,92,0.28)] transition hover:brightness-105"
-                    >
-                      <Camera className="h-3.5 w-3.5" />
-                      Capture Photo
-                    </button>
-                  </div>
-                </Card>
-              ) : null}
-
-              {imageDataUrl ? (
-                <div className="overflow-hidden rounded-[20px] border border-[#d8ccb7] bg-[#fffaf1]">
-                  <img
-                    src={imageDataUrl}
-                    alt="Selected"
+            {cameraOpen ? (
+              <Card className="border-[#d9ccb7] bg-[#fff9ed] p-4">
+                <div className="overflow-hidden rounded-[18px] border border-[#d8ccb7] bg-black">
+                  <video
+                    ref={videoRef}
                     className="aspect-video w-full object-cover"
+                    playsInline
+                    muted
+                    autoPlay
                   />
                 </div>
-              ) : null}
-
-              <ControlShell className="bg-white">
-                <div className="flex items-start gap-3">
-                  <MessageSquareText className="mt-0.5 h-4 w-4 text-[#6d7c84]" />
-                  <div className="w-full">
-                    <p className="mb-2 text-[12px] font-semibold text-[#2e4752]">
-                      Prompt For Live AI (optional)
-                    </p>
-                    <textarea
-                      value={userPrompt}
-                      onChange={(event) => setUserPrompt(event.target.value)}
-                      rows={3}
-                      placeholder="e.g. I am near this place. What should I do in the next 3 hours?"
-                      className="w-full resize-y rounded-xl border border-[#dfd1ba] bg-[#fffdf9] px-3 py-2 text-[13px] text-[var(--ink)] outline-none placeholder:text-[#819199] focus:border-[var(--line-strong)]"
-                    />
-                  </div>
-                </div>
-              </ControlShell>
-
-              <div className="rounded-[16px] border border-[#dbcfbc] bg-[#fff6e7] p-3">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div className="text-xs font-medium text-[#566972]">
-                    {locationStatus}
-                  </div>
+                <div className="mt-3">
                   <button
                     type="button"
-                    onClick={shareLocation}
-                    disabled={isSharingLocation}
-                    className={[
-                      "inline-flex items-center gap-2 rounded-full border px-3.5 py-2 text-xs font-semibold transition",
-                      isSharingLocation
-                        ? "cursor-not-allowed border-[#d9ccb8] bg-[#f2e7d5] text-[#9a8f80]"
-                        : "border-[var(--line)] bg-white text-[#2f4954] hover:border-[var(--line-strong)] hover:bg-[#fff8eb]",
-                    ].join(" ")}
+                    onClick={capturePhoto}
+                    className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-[#0d6a66] to-[#084744] px-4 py-2 text-xs font-semibold text-white shadow-[0_10px_24px_rgba(12,95,92,0.28)] transition hover:brightness-105"
                   >
-                    {isSharingLocation ? (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    ) : (
-                      <MapPin className="h-3.5 w-3.5" />
-                    )}
-                    {isSharingLocation ? "Sharing..." : "Share Location"}
+                    <Camera className="h-3.5 w-3.5" />
+                    Capture Photo
+                  </button>
+                </div>
+              </Card>
+            ) : null}
+
+            {imageDataUrl ? (
+              <div className="overflow-hidden rounded-[20px] border border-[#d8ccb7] bg-[#fffaf1]">
+                <img
+                  src={imageDataUrl}
+                  alt="Selected"
+                  className="aspect-video w-full object-cover"
+                />
+                <div className="flex items-center justify-end border-t border-[#e6d7bf] p-2">
+                  <button
+                    type="button"
+                    onClick={() => setImageDataUrl("")}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-[#d9c9b0] bg-white px-2.5 py-1 text-[11px] font-semibold text-[#5b4728] hover:bg-[#fff8eb]"
+                  >
+                    <X className="h-3 w-3" />
+                    Remove
                   </button>
                 </div>
               </div>
+            ) : null}
 
-              <div className="rounded-[16px] border border-[#dbcfbc] bg-[#fff6e7] px-4 py-3 text-xs font-medium text-[#566972]">
+            <ControlShell className="bg-white">
+              <div className="flex items-start gap-3">
+                <MessageSquareText className="mt-0.5 h-4 w-4 text-[#6d7c84]" />
+                <div className="w-full">
+                  <p className="mb-2 text-[12px] font-semibold text-[#2e4752]">
+                    Prompt For Live AI (optional)
+                  </p>
+                  <textarea
+                    value={userPrompt}
+                    onChange={(event) => setUserPrompt(event.target.value)}
+                    rows={3}
+                    placeholder="I am near this place right now. What should I do in the next 3 hours?"
+                    className="w-full resize-y rounded-xl border border-[#dfd1ba] bg-[#fffdf9] px-3 py-2 text-[13px] text-[var(--ink)] outline-none placeholder:text-[#819199] focus:border-[var(--line-strong)]"
+                  />
+                </div>
+              </div>
+            </ControlShell>
+
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              {QUICK_PROMPTS.map((prompt) => (
+                <button
+                  key={prompt}
+                  type="button"
+                  onClick={() => setUserPrompt(prompt)}
+                  className="rounded-[14px] border border-[#dfd1ba] bg-white px-3 py-2 text-left text-[12px] font-semibold text-[#2f4954] transition hover:bg-[#fff8eb]"
+                >
+                  {prompt}
+                </button>
+              ))}
+            </div>
+
+            <div className="rounded-[16px] border border-[#dbcfbc] bg-[#fff6e7] px-4 py-3 text-xs font-medium text-[#566972]">
+              <div>{locationStatus}</div>
+              <div className="mt-1">
                 {previewLabel}
                 {compressedBytes > 0
                   ? ` • compressed ${formatBytes(compressedBytes)}`
                   : ""}
               </div>
-
-              <button
-                type="button"
-                onClick={sendImage}
-                disabled={!canSend}
-                className={[
-                  "inline-flex w-full items-center justify-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold transition",
-                  canSend
-                    ? "bg-gradient-to-r from-[#0d6a66] to-[#084744] text-white shadow-[0_12px_28px_rgba(12,95,92,0.30)] hover:brightness-105"
-                    : "cursor-not-allowed bg-[#ccd6d9] text-white",
-                ].join(" ")}
-              >
-                {isSending ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Sending...
-                  </>
-                ) : (
-                  <>
-                    <Send className="h-4 w-4" />
-                    Send To Live Travel AI
-                  </>
-                )}
-              </button>
-
-              {error ? (
-                <p className="rounded-xl border border-[#e5c2b9] bg-[#fff2ef] px-3 py-2 text-sm text-[#8b3f2d]">
-                  {error}
-                </p>
+              {!userId ? (
+                <div className="mt-1 text-[#8b3f2d]">
+                  User session missing. Re-login to use live AI.
+                </div>
               ) : null}
             </div>
-          </Card>
-        </section>
 
-        <section className="lg:col-span-7">
-          <Card className="h-full">
-            <SectionHeader
-              icon={<Send className="h-5 w-5" />}
-              title="Live Travel AI Response"
-              subtitle={status}
-            />
-
-            <div className="min-h-[460px] rounded-[20px] border border-[var(--line)] bg-[var(--surface-soft)] p-4 sm:p-5">
-              {resultText ? (
-                <div className="max-h-[560px] overflow-y-auto pr-1">
-                  <LiveResponseRenderer text={resultText} />
-                </div>
+            <button
+              type="button"
+              onClick={sendLiveRequest}
+              disabled={!canSend}
+              className={[
+                "inline-flex w-full items-center justify-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold transition",
+                canSend
+                  ? "bg-gradient-to-r from-[#0d6a66] to-[#084744] text-white shadow-[0_12px_28px_rgba(12,95,92,0.30)] hover:brightness-105"
+                  : "cursor-not-allowed bg-[#ccd6d9] text-white",
+              ].join(" ")}
+            >
+              {isSending ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Sending...
+                </>
               ) : (
-                <div className="flex min-h-[420px] items-center justify-center text-center text-[13px] text-[#6a7b84]">
-                  {isSending
-                    ? "Streaming AI response..."
-                    : "No live response yet. Send location, image, or prompt."}
-                </div>
+                <>
+                  <Send className="h-4 w-4" />
+                  Send to Live AI
+                </>
               )}
-            </div>
-          </Card>
-        </section>
+            </button>
+
+            {error ? (
+              <p className="rounded-xl border border-[#e5c2b9] bg-[#fff2ef] px-3 py-2 text-sm text-[#8b3f2d]">
+                {error}
+              </p>
+            ) : null}
+          </div>
+        </Card>
       </div>
-    </main>
+
+      <div className="space-y-4 lg:col-span-7">
+        <Card className="h-full">
+          <SectionHeader
+            icon={<Send className="h-5 w-5" />}
+            title="Live AI Response"
+            subtitle={status}
+          />
+
+          <div className="min-h-[460px] rounded-[20px] border border-[var(--line)] bg-[var(--surface-soft)] p-4 sm:p-5">
+            {resultText ? (
+              <div className="max-h-[560px] overflow-y-auto pr-1">
+                <LiveResponseRenderer text={resultText} />
+              </div>
+            ) : (
+              <div className="flex min-h-[420px] items-center justify-center text-center text-[13px] text-[#6a7b84]">
+                {isSending
+                  ? "Streaming AI response..."
+                  : "No live response yet. Share location, image, camera capture, or prompt."}
+              </div>
+            )}
+          </div>
+        </Card>
+
+        {rightNowContext ? (
+          <Card>
+            <SectionHeader
+              icon={<MapPin className="h-5 w-5" />}
+              title="Context"
+              subtitle="Optional runtime context for Right Now mode."
+            />
+            <pre className="whitespace-pre-wrap break-words rounded-2xl border border-[#ece2d4] bg-[#fffaf1] p-3 text-[12px] text-[#2f4954]">
+              {JSON.stringify(rightNowContext, null, 2)}
+            </pre>
+          </Card>
+        ) : null}
+      </div>
+    </div>
   );
 }

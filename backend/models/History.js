@@ -14,9 +14,17 @@ const HistorySchema = new Schema({
   image: { type: String },
   title: { type: String },
   detail: { type: String },
+  dayLabel: { type: String },
+  tags: [{ type: String }],
+  source: { type: String, default: "app" },
+  driveFileId: { type: String },
+  driveWebViewLink: { type: String },
+  driveDownloadLink: { type: String },
+  driveThumbnailLink: { type: String },
+  drivePublicImageUrl: { type: String },
   createdAt: {
     type: String,
-    default: moment().format("MMMM Do YYYY, h:mm:ss a"),
+    default: () => moment().format("MMMM Do YYYY, h:mm:ss a"),
   },
 });
 

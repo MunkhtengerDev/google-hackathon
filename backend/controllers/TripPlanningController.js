@@ -9,7 +9,6 @@ const GEMINI_MODEL =
   process.env.GEMINI_MODEL_TRIP_PLAN ||
   process.env.GEMINI_MODEL_STREAM ||
   "gemini-2.0-flash";
-const LIVE_HISTORY_TITLES = ["Live Travel Assistant", "Generated Content"];
 
 const genAI = GEMINI_KEY ? new GoogleGenAI({ apiKey: GEMINI_KEY }) : null;
 
@@ -246,6 +245,135 @@ Include how the user's preferences and constraints shaped this strategy.
 `.trim();
 };
 
+const extractJsonPayload = (text = "") => {
+  const raw = String(text || "").trim();
+  if (!raw) return null;
+
+  const withoutFence = raw
+    .replace(/^```json\s*/i, "")
+    .replace(/^```\s*/i, "")
+    .replace(/\s*```$/i, "")
+    .trim();
+
+  const firstBrace = withoutFence.indexOf("{");
+  const lastBrace = withoutFence.lastIndexOf("}");
+  if (firstBrace === -1 || lastBrace === -1 || lastBrace <= firstBrace) {
+    return null;
+  }
+
+  const candidate = withoutFence.slice(firstBrace, lastBrace + 1);
+  try {
+    return JSON.parse(candidate);
+  } catch (error) {
+    return null;
+  }
+};
+
+const toSafeTextList = (value, max = 8) =>
+  Array.isArray(value)
+    ? value
+        .map((item) => String(item || "").trim())
+        .filter(Boolean)
+        .slice(0, max)
+    : [];
+
+const toSafeObjectList = (value, fields, max = 6) =>
+  Array.isArray(value)
+    ? value
+        .map((item) => {
+          if (!item || typeof item !== "object") return null;
+          const next = {};
+          for (const field of fields) {
+            next[field] = String(item[field] || "").trim();
+          }
+          const hasAny = Object.values(next).some(Boolean);
+          return hasAny ? next : null;
+        })
+        .filter(Boolean)
+        .slice(0, max)
+    : [];
+
+const toGoogleMapsLink = (query = "") =>
+  `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+    query || "travel destination"
+  )}`;
+
+const buildGuideCompanionPrompt = (preferences, latestPlan = "") => {
+  const questionnaire = preferences?.questionnaire || {};
+  const questionnaireSummary = buildQuestionnaireSummary(questionnaire);
+  const planExcerpt = String(latestPlan || "").slice(0, 12000);
+
+  return `
+You are an elite travel concierge and safety advisor.
+Use the trip plan plus onboarding context to produce highly actionable companion guidance.
+
+Rules:
+- Return STRICT JSON only.
+- No markdown, no commentary, no backticks.
+- Never invent certainty. Use "Unknown" if needed.
+- Keep guidance practical and short.
+
+Traveler profile:
+- Travel style: ${formatAnswerValue(preferences?.travelStyle, "Unknown")}
+- Budget level: ${formatAnswerValue(preferences?.budgetLevel, "Unknown")}
+- Interests: ${formatAnswerValue(preferences?.interests, "Unknown")}
+- Mobility preference: ${formatAnswerValue(preferences?.mobilityPreference, "Unknown")}
+- Food preferences: ${formatAnswerValue(preferences?.foodPreferences, "Unknown")}
+
+Onboarding answers:
+${questionnaireSummary}
+
+Latest trip plan:
+${planExcerpt || "Unknown"}
+
+Return this exact JSON shape:
+{
+  "headline": "one-line strategic advice",
+  "destinationSummary": "2-3 sentence practical context summary",
+  "safetyChecklist": ["item"],
+  "localEtiquette": ["item"],
+  "packingChecklist": ["item"],
+  "moneyTips": ["item"],
+  "bookingStrategy": [
+    { "item": "string", "why": "string", "bestTime": "string" }
+  ],
+  "foodMissions": [
+    { "dish": "string", "whereToTry": "string" }
+  ],
+  "hiddenGems": [
+    { "name": "string", "whyVisit": "string", "mapQuery": "string" }
+  ]
+}
+`.trim();
+};
+
+const normalizeGuideCompanion = (raw = {}) => {
+  const hiddenGems = toSafeObjectList(raw.hiddenGems, [
+    "name",
+    "whyVisit",
+    "mapQuery",
+  ]).map((item) => ({
+    ...item,
+    mapUrl: toGoogleMapsLink(item.mapQuery || item.name),
+  }));
+
+  return {
+    headline: String(raw.headline || "").trim(),
+    destinationSummary: String(raw.destinationSummary || "").trim(),
+    safetyChecklist: toSafeTextList(raw.safetyChecklist, 10),
+    localEtiquette: toSafeTextList(raw.localEtiquette, 10),
+    packingChecklist: toSafeTextList(raw.packingChecklist, 12),
+    moneyTips: toSafeTextList(raw.moneyTips, 10),
+    bookingStrategy: toSafeObjectList(raw.bookingStrategy, [
+      "item",
+      "why",
+      "bestTime",
+    ]),
+    foodMissions: toSafeObjectList(raw.foodMissions, ["dish", "whereToTry"]),
+    hiddenGems,
+  };
+};
+
 exports.generateTripPlan = async (req, res) => {
   try {
     if (!GEMINI_KEY || !genAI) {
@@ -350,20 +478,12 @@ exports.getTripDashboardData = async (req, res) => {
   try {
     const userId = getAuthUserId(req);
 
-    const [latestPlan, latestLiveResponse] = await Promise.all([
-      History.findOne({
-        userId,
-        title: "Trip Plan Draft",
-      })
-        .sort({ _id: -1 })
-        .lean(),
-      History.findOne({
-        userId,
-        title: { $in: LIVE_HISTORY_TITLES },
-      })
-        .sort({ _id: -1 })
-        .lean(),
-    ]);
+    const latestPlan = await History.findOne({
+      userId,
+      title: "Trip Plan Draft",
+    })
+      .sort({ _id: -1 })
+      .lean();
 
     return res.status(200).json({
       success: true,
@@ -376,14 +496,6 @@ exports.getTripDashboardData = async (req, res) => {
               createdAt: latestPlan.createdAt || null,
             }
           : null,
-        liveTravel: latestLiveResponse?.detail
-          ? {
-              id: latestLiveResponse._id,
-              title: latestLiveResponse.title || "Live Travel Assistant",
-              response: latestLiveResponse.detail,
-              createdAt: latestLiveResponse.createdAt || null,
-            }
-          : null,
       },
     });
   } catch (error) {
@@ -394,6 +506,66 @@ exports.getTripDashboardData = async (req, res) => {
     console.error("getTripDashboardData error:", error.message);
     return res.status(500).json({
       message: "Failed to load trip dashboard data",
+      error: error.message,
+    });
+  }
+};
+
+exports.getGuideCompanion = async (req, res) => {
+  try {
+    if (!GEMINI_KEY || !genAI) {
+      return res.status(500).json({ message: "Gemini key missing" });
+    }
+
+    const userId = getAuthUserId(req);
+
+    const [storedPreferences, latestPlan] = await Promise.all([
+      TravelPreference.findOne({ userId }).lean(),
+      History.findOne({ userId, title: "Trip Plan Draft" })
+        .sort({ _id: -1 })
+        .lean(),
+    ]);
+
+    if (!latestPlan?.detail) {
+      return res.status(404).json({
+        message: "No trip plan found. Generate a trip plan first.",
+      });
+    }
+
+    const prompt = buildGuideCompanionPrompt(storedPreferences, latestPlan.detail);
+    const aiResponse = await genAI.models.generateContent({
+      model: GEMINI_MODEL,
+      contents: [{ role: "user", parts: [{ text: prompt }] }],
+    });
+
+    const responseText = extractGeneratedText(aiResponse);
+    if (!responseText) {
+      return res
+        .status(502)
+        .json({ message: "Guide companion model returned empty output" });
+    }
+
+    const parsed = extractJsonPayload(responseText);
+    if (!parsed) {
+      return res.status(502).json({
+        message: "Guide companion output was not valid JSON",
+      });
+    }
+
+    const normalized = normalizeGuideCompanion(parsed);
+
+    return res.status(200).json({
+      success: true,
+      data: normalized,
+    });
+  } catch (error) {
+    if (error.statusCode) {
+      return res.status(error.statusCode).json({ message: error.message });
+    }
+
+    console.error("getGuideCompanion error:", error.message);
+    return res.status(500).json({
+      message: "Failed to load guide companion data",
       error: error.message,
     });
   }
