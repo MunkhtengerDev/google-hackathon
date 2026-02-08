@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Home, MapPin, Loader2 } from "lucide-react";
+import { Home, MapPin, Loader2, Plane, Globe, RefreshCw } from "lucide-react";
 import { Card, SectionHeader, Field, ControlShell } from "../../../ui/primitives";
 
 async function ipFallback() {
@@ -31,11 +31,49 @@ async function reverseGeocode(lat, lng, apiKey) {
 
 export default function HomeContextSection({ value, onChange, mapsApiKey, onFocusQuery }) {
   const [loading, setLoading] = useState(false);
+  const [currencyLoading, setCurrencyLoading] = useState(false);
 
+  // 1. Detect currency based on the text written in "Living Country"
+  const handleDetectCurrency = async () => {
+    const targetCountry = value.livingCountry;
+    
+    if (!targetCountry) {
+        alert("Please enter a Living Country first.");
+        return;
+    }
+
+    setCurrencyLoading(true);
+    try {
+        // Use free RestCountries API to find currency by country name
+        const res = await fetch(`https://restcountries.com/v3.1/name/${targetCountry}`);
+        if (!res.ok) throw new Error("Country not found");
+        
+        const data = await res.json();
+        // The API returns an array, we take the first match
+        const countryData = data[0];
+        
+        if (countryData?.currencies) {
+            // Extract the first currency key (e.g., "EUR", "USD", "MNT")
+            const currencyCode = Object.keys(countryData.currencies)[0];
+            
+            onChange({
+                ...value,
+                currency: currencyCode
+            });
+        }
+    } catch (error) {
+        console.error("Could not fetch currency:", error);
+        // Fallback or alert could go here
+    } finally {
+        setCurrencyLoading(false);
+    }
+  };
+
+  // 2. Global Location Detection (GPS)
   const detectLocation = async () => {
     setLoading(true);
     try {
-      // 1) Browser GPS first
+      // Browser GPS
       const pos = await new Promise((resolve, reject) => {
         if (!navigator.geolocation) return reject(new Error("no geolocation"));
         navigator.geolocation.getCurrentPosition(resolve, reject, {
@@ -47,7 +85,6 @@ export default function HomeContextSection({ value, onChange, mapsApiKey, onFocu
       const lat = pos.coords.latitude;
       const lng = pos.coords.longitude;
 
-      // reverse geocode → country/city
       let geo = null;
       try {
         geo = await reverseGeocode(lat, lng, mapsApiKey);
@@ -55,30 +92,34 @@ export default function HomeContextSection({ value, onChange, mapsApiKey, onFocu
         geo = null;
       }
 
-      // IP fallback for currency + backup
+      // IP fallback
       const ip = await ipFallback();
+
+      const detectedCountry = geo?.country || ip.country_name || "";
+      const detectedCity = geo?.city || ip.city || "";
+      const detectedCurrency = ip.currency || "USD";
 
       const next = {
         ...value,
-        homeCountry: geo?.country || ip.country_name || value.homeCountry || "",
-        departureCity: geo?.city || ip.city || value.departureCity || "",
-        currency: ip.currency || value.currency || "USD",
+        citizenship: value.citizenship || detectedCountry, 
+        livingCountry: detectedCountry || value.livingCountry || "",
+        departureCity: detectedCity || value.departureCity || "",
+        currency: detectedCurrency || value.currency || "USD",
       };
 
       onChange(next);
-      onFocusQuery?.([next.departureCity, next.homeCountry].filter(Boolean).join(", "));
+      onFocusQuery?.([next.departureCity, next.livingCountry].filter(Boolean).join(", "));
     } catch {
-      // last resort
       try {
         const ip = await ipFallback();
         const next = {
           ...value,
-          homeCountry: ip.country_name || value.homeCountry || "",
+          citizenship: value.citizenship || ip.country_name || "",
+          livingCountry: ip.country_name || value.livingCountry || "",
           departureCity: ip.city || value.departureCity || "",
           currency: ip.currency || value.currency || "USD",
         };
         onChange(next);
-        onFocusQuery?.([next.departureCity, next.homeCountry].filter(Boolean).join(", "));
       } catch (e) {
         console.error("Location detection failed", e);
       }
@@ -92,7 +133,7 @@ export default function HomeContextSection({ value, onChange, mapsApiKey, onFocu
       <SectionHeader
         icon={<Home className="w-5 h-5" />}
         title="Home & Context"
-        subtitle="Where are you starting from?"
+        subtitle="Visa status and Flight origin"
       />
 
       <div className="mb-6 flex justify-end">
@@ -106,44 +147,70 @@ export default function HomeContextSection({ value, onChange, mapsApiKey, onFocu
       </div>
 
       <div className="space-y-4">
-        <Field label="Home Country">
+        {/* CITIZENSHIP */}
+        <Field label="Citizenship / Passport" icon={<Globe className="w-3 h-3 text-gray-400" />}>
           <ControlShell className="bg-white">
             <input
-              value={value.homeCountry || ""}
-              onChange={(e) => {
-                const v = { ...value, homeCountry: e.target.value };
-                onChange(v);
-                onFocusQuery?.(e.target.value);
-              }}
+              value={value.citizenship || ""}
+              onChange={(e) => onChange({ ...value, citizenship: e.target.value })}
               className="w-full bg-transparent text-[14px] text-[var(--ink)] outline-none placeholder:text-[#809097]"
               placeholder="e.g. Mongolia"
             />
           </ControlShell>
         </Field>
 
-        <Field label="Departure City">
+        <div className="h-px bg-gray-100 my-2" />
+
+        {/* LIVING COUNTRY */}
+        <Field label="Living Country" icon={<Plane className="w-3 h-3 text-gray-400" />}>
           <ControlShell className="bg-white">
             <input
-              value={value.departureCity || ""}
+              value={value.livingCountry || ""}
               onChange={(e) => {
-                const v = { ...value, departureCity: e.target.value };
-                onChange(v);
-                onFocusQuery?.(e.target.value);
+                  onChange({ ...value, livingCountry: e.target.value });
+                  onFocusQuery?.(e.target.value);
               }}
               className="w-full bg-transparent text-[14px] text-[var(--ink)] outline-none placeholder:text-[#809097]"
-              placeholder="e.g. Ulaanbaatar"
+              placeholder="e.g. United Kingdom"
             />
           </ControlShell>
         </Field>
 
-        <Field label="Currency">
+        {/* DEPARTURE CITY */}
+        <Field label="Departure City">
           <ControlShell className="bg-white">
+            <input
+              value={value.departureCity || ""}
+              onChange={(e) => onChange({ ...value, departureCity: e.target.value })}
+              className="w-full bg-transparent text-[14px] text-[var(--ink)] outline-none placeholder:text-[#809097]"
+              placeholder="e.g. London"
+            />
+          </ControlShell>
+        </Field>
+
+        {/* CURRENCY with DETECT BUTTON */}
+        <Field label="Currency">
+          <ControlShell className="bg-white flex items-center gap-2 pr-2">
             <input
               value={value.currency || "USD"}
               onChange={(e) => onChange({ ...value, currency: e.target.value })}
-              className="w-full bg-transparent text-[14px] text-[var(--ink)] outline-none placeholder:text-[#809097]"
+              className="flex-1 bg-transparent text-[14px] text-[var(--ink)] outline-none placeholder:text-[#809097]"
               placeholder="USD"
             />
+            {/* Auto-detect button */}
+            <button
+                onClick={handleDetectCurrency}
+                disabled={!value.livingCountry || currencyLoading}
+                title="Detect currency from Living Country"
+                className="flex items-center gap-1.5 rounded-md bg-gray-100 px-2 py-1 text-[10px] font-medium text-gray-600 transition hover:bg-gray-200 disabled:opacity-50"
+            >
+                {currencyLoading ? (
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                ) : (
+                    <RefreshCw className="w-3 h-3" />
+                )}
+                <span>Auto</span>
+            </button>
           </ControlShell>
         </Field>
       </div>
@@ -153,8 +220,7 @@ export default function HomeContextSection({ value, onChange, mapsApiKey, onFocu
           Why this matters
         </div>
         <p className="mt-1 text-[13px] text-[#556871]">
-          We use home context to estimate flight ranges, compare value windows,
-          and optimize realistic routes.
+          Use the <strong>Auto</strong> button to sync your currency with your Living Country.
         </p>
       </div>
     </Card>
