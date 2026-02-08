@@ -97,6 +97,15 @@ exports.updatePreference = async (req, res) => {
       "questionnaire.destination",
       "questionnaire.dates",
       "questionnaire.budget",
+      "questionnaire.food",
+      "questionnaire.mobility",
+      "questionnaire.style",
+      "questionnaire.group",
+      "questionnaire.accommodation",
+      "questionnaire.goals",
+      "questionnaire.permissions",
+      "questionnaire.askedQuestions",
+      "questionnaire.rawAnswers",
     ];
 
     if (!allowedFields.includes(field)) {

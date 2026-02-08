@@ -15,25 +15,75 @@ function createDefaultPlannerData() {
       homeCountry: "",
       departureCity: "",
       currency: "USD",
+      nearbyAirports: false,
+      departureAirportCode: "",
     },
     destination: {
       countries: [],
       cities: [],
       regions: [],
+      continents: [],
       flexibility: "fixed",
+      dayTripsPlanned: false,
     },
     dates: {
       start: "",
       end: "",
+      earliestStart: "",
+      latestStart: "",
       durationDays: 7,
+      durationRange: { min: "", max: "" },
+      canChangeDates: "no",
       timingPriority: [],
       seasonPref: "no_preference",
     },
     budget: {
       currency: "USD",
       usdBudget: 0,
+      budgetType: "total",
+      savedAmountUsd: 0,
+      isFlexible: true,
       priority: "balance",
       spendingStyle: "track",
+      emergencyBufferUsd: 0,
+    },
+    food: {
+      diet: [],
+      importance: "nice",
+      notes: "",
+    },
+    mobility: {
+      preferredTransport: [],
+      comfortRange: "30",
+      notes: "",
+    },
+    style: {
+      interests: [],
+      tasteText: "",
+      travelPace: "balanced",
+      hates: [],
+      pastLoved: [],
+    },
+    group: {
+      who: "solo",
+      adults: 1,
+      childrenAges: [],
+      totalPeople: 1,
+    },
+    accommodation: {
+      status: "not_booked",
+      type: "",
+      preference: [],
+    },
+    goals: {
+      experienceGoals: [],
+      oneSentenceGoal: "",
+    },
+    permissions: {
+      allowAltDestinations: true,
+      allowBudgetOptimize: true,
+      allowDailyAdjust: false,
+      allowSaveForFuture: true,
     },
   };
 }
@@ -46,6 +96,18 @@ function normalizeArray(value) {
   if (!Array.isArray(value)) return [];
   const cleaned = value.map((item) => normalizeText(item)).filter(Boolean);
   return Array.from(new Set(cleaned));
+}
+
+function normalizeBoolean(value, fallback = false) {
+  if (typeof value === "boolean") return value;
+  if (value === "true") return true;
+  if (value === "false") return false;
+  return fallback;
+}
+
+function normalizeNumber(value, fallback = 0) {
+  const next = Number(value);
+  return Number.isFinite(next) ? next : fallback;
 }
 
 function hydratePlannerData(preferences) {
@@ -61,23 +123,45 @@ function hydratePlannerData(preferences) {
       departureCity: normalizeText(questionnaire.context?.departureCity),
       currency:
         normalizeText(questionnaire.context?.currency) || base.context.currency,
+      nearbyAirports: normalizeBoolean(
+        questionnaire.context?.nearbyAirports,
+        base.context.nearbyAirports
+      ),
+      departureAirportCode: normalizeText(
+        questionnaire.context?.departureAirportCode
+      ),
     },
     destination: {
       ...base.destination,
       countries: normalizeArray(questionnaire.destination?.countries),
       cities: normalizeArray(questionnaire.destination?.cities),
       regions: normalizeArray(questionnaire.destination?.regions),
+      continents: normalizeArray(questionnaire.destination?.continents),
       flexibility:
         normalizeText(questionnaire.destination?.flexibility) ||
         base.destination.flexibility,
+      dayTripsPlanned: normalizeBoolean(
+        questionnaire.destination?.dayTripsPlanned,
+        base.destination.dayTripsPlanned
+      ),
     },
     dates: {
       ...base.dates,
       start: normalizeText(questionnaire.dates?.start),
       end: normalizeText(questionnaire.dates?.end),
-      durationDays: Number(
-        questionnaire.dates?.durationDays || base.dates.durationDays
+      earliestStart: normalizeText(questionnaire.dates?.earliestStart),
+      latestStart: normalizeText(questionnaire.dates?.latestStart),
+      durationDays: normalizeNumber(
+        questionnaire.dates?.durationDays,
+        base.dates.durationDays
       ),
+      durationRange: {
+        min: normalizeText(questionnaire.dates?.durationRange?.min),
+        max: normalizeText(questionnaire.dates?.durationRange?.max),
+      },
+      canChangeDates:
+        normalizeText(questionnaire.dates?.canChangeDates) ||
+        base.dates.canChangeDates,
       timingPriority: normalizeArray(questionnaire.dates?.timingPriority),
       seasonPref:
         normalizeText(questionnaire.dates?.seasonPref) || base.dates.seasonPref,
@@ -86,12 +170,94 @@ function hydratePlannerData(preferences) {
       ...base.budget,
       currency:
         normalizeText(questionnaire.budget?.currency) || base.budget.currency,
-      usdBudget: Number(questionnaire.budget?.usdBudget || 0),
+      usdBudget: normalizeNumber(questionnaire.budget?.usdBudget, 0),
+      budgetType:
+        normalizeText(questionnaire.budget?.budgetType) ||
+        base.budget.budgetType,
+      savedAmountUsd: normalizeNumber(questionnaire.budget?.savedAmountUsd, 0),
+      isFlexible: normalizeBoolean(
+        questionnaire.budget?.isFlexible,
+        base.budget.isFlexible
+      ),
       priority:
         normalizeText(questionnaire.budget?.priority) || base.budget.priority,
       spendingStyle:
         normalizeText(questionnaire.budget?.spendingStyle) ||
         base.budget.spendingStyle,
+      emergencyBufferUsd: normalizeNumber(
+        questionnaire.budget?.emergencyBufferUsd,
+        0
+      ),
+    },
+    food: {
+      ...base.food,
+      diet: normalizeArray(questionnaire.food?.diet),
+      importance:
+        normalizeText(questionnaire.food?.importance) || base.food.importance,
+      notes: normalizeText(questionnaire.food?.notes),
+    },
+    mobility: {
+      ...base.mobility,
+      preferredTransport: normalizeArray(questionnaire.mobility?.preferredTransport),
+      comfortRange:
+        normalizeText(questionnaire.mobility?.comfortRange) ||
+        base.mobility.comfortRange,
+      notes: normalizeText(questionnaire.mobility?.notes),
+    },
+    style: {
+      ...base.style,
+      interests: normalizeArray(questionnaire.style?.interests),
+      tasteText: normalizeText(questionnaire.style?.tasteText),
+      travelPace:
+        normalizeText(questionnaire.style?.travelPace) || base.style.travelPace,
+      hates: normalizeArray(questionnaire.style?.hates),
+      pastLoved: normalizeArray(questionnaire.style?.pastLoved),
+    },
+    group: {
+      ...base.group,
+      who: normalizeText(questionnaire.group?.who) || base.group.who,
+      adults: normalizeNumber(questionnaire.group?.adults, base.group.adults),
+      childrenAges: Array.isArray(questionnaire.group?.childrenAges)
+        ? questionnaire.group.childrenAges
+            .map((value) => Number(value))
+            .filter((value) => Number.isFinite(value))
+        : base.group.childrenAges,
+      totalPeople: normalizeNumber(
+        questionnaire.group?.totalPeople,
+        base.group.totalPeople
+      ),
+    },
+    accommodation: {
+      ...base.accommodation,
+      status:
+        normalizeText(questionnaire.accommodation?.status) ||
+        base.accommodation.status,
+      type: normalizeText(questionnaire.accommodation?.type),
+      preference: normalizeArray(questionnaire.accommodation?.preference),
+    },
+    goals: {
+      ...base.goals,
+      experienceGoals: normalizeArray(questionnaire.goals?.experienceGoals),
+      oneSentenceGoal: normalizeText(questionnaire.goals?.oneSentenceGoal),
+    },
+    permissions: {
+      ...base.permissions,
+      allowAltDestinations: normalizeBoolean(
+        questionnaire.permissions?.allowAltDestinations,
+        base.permissions.allowAltDestinations
+      ),
+      allowBudgetOptimize: normalizeBoolean(
+        questionnaire.permissions?.allowBudgetOptimize,
+        base.permissions.allowBudgetOptimize
+      ),
+      allowDailyAdjust: normalizeBoolean(
+        questionnaire.permissions?.allowDailyAdjust,
+        base.permissions.allowDailyAdjust
+      ),
+      allowSaveForFuture: normalizeBoolean(
+        questionnaire.permissions?.allowSaveForFuture,
+        base.permissions.allowSaveForFuture
+      ),
     },
   };
 }
@@ -119,10 +285,28 @@ function isPlannerComplete(data) {
 
   if (!hasDates) return false;
 
-  return (
+  const hasBudget =
     Number(data.budget?.usdBudget || 0) > 0 &&
-    Boolean(data.budget?.currency?.trim())
-  );
+    Boolean(data.budget?.currency?.trim());
+  if (!hasBudget) return false;
+
+  const hasFood = Boolean(data.food?.importance);
+  const hasMobility = (data.mobility?.preferredTransport?.length || 0) > 0;
+  const hasStyle = true;
+  const hasPermissions = true;
+  if (!hasFood || !hasMobility || !hasStyle || !hasPermissions) return false;
+
+  if (data.tripStatus === "booked") {
+    const hasGroup = Boolean(data.group?.who?.trim());
+    const hasAccommodation = Boolean(data.accommodation?.status?.trim());
+    const hasGoals =
+      (data.goals?.experienceGoals?.length || 0) > 0 ||
+      Boolean(data.goals?.oneSentenceGoal?.trim());
+
+    if (!hasGroup || !hasAccommodation || !hasGoals) return false;
+  }
+
+  return true;
 }
 
 function App() {
