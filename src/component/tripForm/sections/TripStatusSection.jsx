@@ -11,7 +11,7 @@ export default function TripStatusSection({ value, onChange }) {
           onClick={() => onChange("planning")}
           icon={<Compass className="w-5 h-5" />}
           title="I'm just planning"
-          description="I haven't booked anything yet. I need inspiration, estimated costs, and best times to fly."
+          description="I haven't booked yet. Give me a full strategy: where to stay, mobility reach, budget scenarios, and best booking windows."
         />
 
         <OptionCard

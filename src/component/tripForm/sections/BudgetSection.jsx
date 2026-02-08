@@ -2,13 +2,27 @@ import React from "react";
 import { Wallet } from "lucide-react";
 import { Card, SectionHeader, Field, ControlShell, PillButton } from "../../../ui/primitives";
 
-export default function BudgetSection({ tripStatus, value, onChange }) {
+function normalizeCurrencyCode(value, fallback = "USD") {
+  const cleaned = String(value || "")
+    .toUpperCase()
+    .replace(/[^A-Z]/g, "")
+    .slice(0, 3);
+  return cleaned || fallback;
+}
+
+export default function BudgetSection({
+  tripStatus,
+  value,
+  onChange,
+  homeCurrency = "USD",
+}) {
   const PRIORITIES = [
     { id: "comfort", label: "Comfort" },
     { id: "balance", label: "Balance" },
     { id: "cheapest", label: "Cheapest Possible" },
     { id: "once", label: "Once in a Lifetime" },
   ];
+  const normalizedHomeCurrency = normalizeCurrencyCode(homeCurrency, "USD");
 
   return (
     <Card>
@@ -34,11 +48,32 @@ export default function BudgetSection({ tripStatus, value, onChange }) {
           </ControlShell>
         </Field>
 
-        <Field label="Currency (for display)">
+        <Field
+          label="Currency (for display)"
+          right={
+            <button
+              type="button"
+              onClick={() =>
+                onChange({
+                  ...value,
+                  currency: normalizedHomeCurrency,
+                })
+              }
+              className="rounded-md border border-[#ddd0bc] bg-[#fff7e9] px-2 py-1 text-[10px] font-semibold text-[#35505c] transition hover:border-[#c8b89d]"
+            >
+              Use home: {normalizedHomeCurrency}
+            </button>
+          }
+        >
           <ControlShell className="bg-white">
             <input
               value={value.currency || "USD"}
-              onChange={(e) => onChange({ ...value, currency: e.target.value })}
+              onChange={(e) =>
+                onChange({
+                  ...value,
+                  currency: normalizeCurrencyCode(e.target.value, ""),
+                })
+              }
               className="w-full bg-transparent outline-none placeholder:text-[#83939b]"
               placeholder="USD"
             />

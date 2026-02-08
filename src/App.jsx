@@ -11,6 +11,7 @@ function createDefaultPlannerData() {
   return {
     tripStatus: "",
     context: {
+      citizenship: "",
       homeCountry: "",
       departureCity: "",
       currency: "USD",
@@ -118,7 +119,13 @@ function hydratePlannerData(preferences) {
     tripStatus: normalizeText(questionnaire.tripStatus),
     context: {
       ...base.context,
-      homeCountry: normalizeText(questionnaire.context?.homeCountry),
+      citizenship:
+        normalizeText(questionnaire.context?.citizenship) ||
+        normalizeText(questionnaire.context?.homeCountry) ||
+        normalizeText(questionnaire.context?.livingCountry),
+      homeCountry:
+        normalizeText(questionnaire.context?.homeCountry) ||
+        normalizeText(questionnaire.context?.livingCountry),
       departureCity: normalizeText(questionnaire.context?.departureCity),
       currency:
         normalizeText(questionnaire.context?.currency) || base.context.currency,

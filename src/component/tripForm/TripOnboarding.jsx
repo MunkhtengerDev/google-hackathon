@@ -109,9 +109,9 @@ const ALL_STEPS = [
   {
     key: "accommodation",
     title: "Accommodation Status",
-    subtitle: "Map-centric planning works best when we know where you’ll stay.",
+    subtitle:
+      "Optional for planning, essential for booked trips. Improves mobility and routing precision.",
     visual: "map",
-    condition: (data) => data.tripStatus === "booked",
   },
   {
     key: "goals",
@@ -133,6 +133,7 @@ function defaultState() {
   return {
     tripStatus: "", // "planning" | "booked"
     context: {
+      citizenship: "",
       homeCountry: "",
       departureCity: "",
       currency: "USD",
@@ -289,6 +290,14 @@ function normalizeText(value) {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function normalizeCurrencyCode(value, fallback = "") {
+  const cleaned = String(value || "")
+    .toUpperCase()
+    .replace(/[^A-Z]/g, "")
+    .slice(0, 3);
+  return cleaned || fallback;
+}
+
 function normalizeStringArray(values) {
   if (!Array.isArray(values)) return [];
   const cleaned = values.map((item) => normalizeText(item)).filter(Boolean);
@@ -334,9 +343,10 @@ function buildPreferencesPayload(data) {
   const questionnaire = {
     tripStatus: normalizeText(data.tripStatus),
     context: {
+      citizenship: normalizeText(data.context?.citizenship),
       homeCountry: normalizeText(data.context?.homeCountry),
       departureCity: normalizeText(data.context?.departureCity),
-      currency: normalizeText(data.context?.currency) || "USD",
+      currency: normalizeCurrencyCode(data.context?.currency, "USD"),
       nearbyAirports: Boolean(data.context?.nearbyAirports),
       departureAirportCode: normalizeText(data.context?.departureAirportCode),
     },
@@ -357,7 +367,7 @@ function buildPreferencesPayload(data) {
       canChangeDates: normalizeText(data.dates?.canChangeDates) || "no",
     },
     budget: {
-      currency: normalizeText(data.budget?.currency) || "USD",
+      currency: normalizeCurrencyCode(data.budget?.currency, "USD"),
       usdBudget: Number(data.budget?.usdBudget || 0),
       priority: normalizeText(data.budget?.priority) || "balance",
       spendingStyle: normalizeText(data.budget?.spendingStyle) || "track",
@@ -419,6 +429,12 @@ function buildPreferencesPayload(data) {
     questionnaire.tripStatus
   );
 
+  addAskedQuestion(
+    askedQuestions,
+    "context.citizenship",
+    "What is your citizenship / passport country?",
+    questionnaire.context.citizenship
+  );
   addAskedQuestion(
     askedQuestions,
     "context.homeCountry",
@@ -665,21 +681,6 @@ function buildPreferencesPayload(data) {
         answer: questionnaire.group.childrenAges,
       },
       {
-        key: "accommodation.status",
-        question: "What is your accommodation booking status?",
-        answer: questionnaire.accommodation.status,
-      },
-      {
-        key: "accommodation.type",
-        question: "What accommodation type do you prefer?",
-        answer: questionnaire.accommodation.type,
-      },
-      {
-        key: "accommodation.preference",
-        question: "What accommodation location preferences matter?",
-        answer: questionnaire.accommodation.preference,
-      },
-      {
         key: "goals.experienceGoals",
         question: "What are your top experience goals?",
         answer: questionnaire.goals.experienceGoals,
@@ -691,6 +692,24 @@ function buildPreferencesPayload(data) {
       }
     );
   }
+
+  askedQuestions.push(
+    {
+      key: "accommodation.status",
+      question: "What is your accommodation booking status?",
+      answer: questionnaire.accommodation.status,
+    },
+    {
+      key: "accommodation.type",
+      question: "What accommodation type do you prefer?",
+      answer: questionnaire.accommodation.type,
+    },
+    {
+      key: "accommodation.preference",
+      question: "What accommodation location preferences matter?",
+      answer: questionnaire.accommodation.preference,
+    }
+  );
 
   addAskedQuestion(
     askedQuestions,
@@ -789,7 +808,16 @@ export default function TripOnboarding({ token, onCompleted, initialData }) {
           .join(", ") || "World"
       );
     }
-    if (stepConfig.key === "destination" || stepConfig.key === "mobility") {
+    if (stepConfig.key === "accommodation") {
+      const hotel = data.accommodation?.hotels?.[0];
+      if (hotel?.name) return hotel.name;
+      if (hotel?.address) return hotel.address;
+    }
+    if (
+      stepConfig.key === "destination" ||
+      stepConfig.key === "mobility" ||
+      stepConfig.key === "accommodation"
+    ) {
       const last =
         data.destination.cities?.slice(-1)[0] ||
         data.destination.regions?.slice(-1)[0] ||
@@ -797,7 +825,7 @@ export default function TripOnboarding({ token, onCompleted, initialData }) {
       return last || "World";
     }
     return "World";
-  }, [stepConfig, data.context, data.destination]);
+  }, [stepConfig, data.context, data.destination, data.accommodation]);
 
   const markers = useMemo(() => {
     const list = [
@@ -992,7 +1020,38 @@ export default function TripOnboarding({ token, onCompleted, initialData }) {
         {stepConfig?.key === "context" && (
           <HomeContextSection
             value={data.context}
-            onChange={(v) => setData((d) => ({ ...d, context: v }))}
+            onChange={(v) =>
+              setData((d) => {
+                const nextContextCurrency = normalizeCurrencyCode(
+                  v?.currency,
+                  normalizeCurrencyCode(d.context?.currency, "USD")
+                );
+                const previousContextCurrency = normalizeCurrencyCode(
+                  d.context?.currency
+                );
+                const previousBudgetCurrency = normalizeCurrencyCode(
+                  d.budget?.currency
+                );
+
+                const shouldSyncBudgetCurrency =
+                  !previousBudgetCurrency ||
+                  previousBudgetCurrency === previousContextCurrency;
+
+                return {
+                  ...d,
+                  context: {
+                    ...v,
+                    currency: nextContextCurrency,
+                  },
+                  budget: shouldSyncBudgetCurrency
+                    ? {
+                        ...d.budget,
+                        currency: nextContextCurrency || "USD",
+                      }
+                    : d.budget,
+                };
+              })
+            }
             mapsApiKey={mapsApiKey}
             onFocusQuery={(q) => setRightQuery(q)}
           />
@@ -1019,7 +1078,16 @@ export default function TripOnboarding({ token, onCompleted, initialData }) {
           <BudgetSection
             tripStatus={data.tripStatus}
             value={data.budget}
-            onChange={(v) => setData((d) => ({ ...d, budget: v }))}
+            homeCurrency={data.context?.currency}
+            onChange={(v) =>
+              setData((d) => ({
+                ...d,
+                budget: {
+                  ...v,
+                  currency: normalizeCurrencyCode(v?.currency, "USD"),
+                },
+              }))
+            }
           />
         )}
 
@@ -1037,6 +1105,12 @@ export default function TripOnboarding({ token, onCompleted, initialData }) {
             value={data.mobility}
             onChange={(v) => setData((d) => ({ ...d, mobility: v }))}
             mapsApiKey={mapsApiKey}
+            hotels={data.accommodation?.hotels || []}
+            destinationAnchors={[
+              ...(data.destination?.cities || []),
+              ...(data.destination?.regions || []),
+              ...(data.destination?.countries || []),
+            ]}
             onFocusQuery={(q) => setRightQuery(q)}
           />
         )}

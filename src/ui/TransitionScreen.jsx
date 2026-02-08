@@ -7,7 +7,7 @@ const MESSAGES = [
   "Noted.",
   "Let's keep going.",
   "Interesting...",
-  "Got it."
+  "Got it.",
 ];
 
 export default function TransitionScreen({
@@ -51,7 +51,6 @@ export default function TransitionScreen({
         {persist ? (
           <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-[#edc9d0] bg-white px-4 py-2 text-[13px] font-semibold text-[#6a3c45] shadow-sm">
             <Loader2 className="h-4 w-4 animate-spin" />
-            Generating your personalized plan...
           </div>
         ) : (
           <div className="mx-auto h-1 w-16 rounded-full bg-[#FF385C]" />

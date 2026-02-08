@@ -7,7 +7,6 @@ import {
   MapPin,
   RefreshCcw,
   Shield,
-  Sparkles,
   Wallet,
   Zap,
 } from "lucide-react";
@@ -90,9 +89,6 @@ export default function ResponsePlanSidebar({
     <aside className="lg:col-span-3">
       <Card className="sticky top-6">
         <SectionHeader
-          icon={<Sparkles className="h-5 w-5" />}
-          title={title}
-          subtitle={subtitle}
           right={
             onRefresh ? (
               <button
@@ -111,32 +107,32 @@ export default function ResponsePlanSidebar({
           <NavItem
             active={active === "timeline"}
             onClick={() => onChangeActive("timeline")}
-            label="🗺️ Timeline Guide"
+            label="Timeline Guide"
             badge={`${timelineStops.length}`}
             icon={<Brain className="h-4 w-4" />}
           />
           <NavItem
             active={active === "wallet"}
             onClick={() => onChangeActive("wallet")}
-            label="💰 Wallet"
+            label="Wallet"
             icon={<Wallet className="h-4 w-4" />}
           />
           <NavItem
             active={active === "guide"}
             onClick={() => onChangeActive("guide")}
-            label="🧭 Guide Companion"
+            label="Guide Companion"
             icon={<Shield className="h-4 w-4" />}
           />
           <NavItem
             active={active === "memories"}
             onClick={() => onChangeActive("memories")}
-            label="📸 Memories"
+            label="Memories"
             icon={<Camera className="h-4 w-4" />}
           />
           <NavItem
             active={active === "rightnow"}
             onClick={() => onChangeActive("rightnow")}
-            label="⚡ Right Now"
+            label="Right Now"
             icon={<Zap className="h-4 w-4" />}
           />
         </div>

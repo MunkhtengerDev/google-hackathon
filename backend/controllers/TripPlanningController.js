@@ -58,12 +58,16 @@ const buildQuestionnaireSummary = (questionnaire = {}) => {
   const accommodation = questionnaire.accommodation || {};
   const goals = questionnaire.goals || {};
   const permissions = questionnaire.permissions || {};
+  const travelerCitizenship = formatAnswerValue(
+    context.citizenship || context.homeCountry
+  );
 
   const lines = [
     "- Trip Status",
     `  - Trip status: ${formatAnswerValue(questionnaire.tripStatus)}`,
     "",
     "- Home Context",
+    `  - Citizenship / passport: ${travelerCitizenship}`,
     `  - Home country: ${formatAnswerValue(context.homeCountry)}`,
     `  - Departure city: ${formatAnswerValue(context.departureCity)}`,
     `  - Currency: ${formatAnswerValue(context.currency, "USD")}`,
@@ -277,6 +281,11 @@ const toSafeTextList = (value, max = 8) =>
         .slice(0, max)
     : [];
 
+const toSafeText = (value, fallback = "") => {
+  const text = String(value || "").trim();
+  return text || fallback;
+};
+
 const toSafeObjectList = (value, fields, max = 6) =>
   Array.isArray(value)
     ? value
@@ -312,6 +321,8 @@ Rules:
 - No markdown, no commentary, no backticks.
 - Never invent certainty. Use "Unknown" if needed.
 - Keep guidance practical and short.
+- For visa info, prioritize citizenship/passport context and destination context.
+- Keep visa notes concise (2-5 short bullets total).
 
 Traveler profile:
 - Travel style: ${formatAnswerValue(preferences?.travelStyle, "Unknown")}
@@ -330,6 +341,17 @@ Return this exact JSON shape:
 {
   "headline": "one-line strategic advice",
   "destinationSummary": "2-3 sentence practical context summary",
+  "visaQuickFacts": {
+    "travelerCitizenship": "string",
+    "destination": "string",
+    "entryRequirement": "Visa-free | eVisa | Visa on arrival | Visa required | ETA | Unknown",
+    "maxVisaFreeStay": "e.g., 90 days | Not visa-free | Unknown",
+    "typicalProcessingTime": "string",
+    "estimatedFee": "string",
+    "requiredDocuments": ["short item"],
+    "extraNotes": ["short item"],
+    "officialSourceHint": "one short sentence"
+  },
   "safetyChecklist": ["item"],
   "localEtiquette": ["item"],
   "packingChecklist": ["item"],
@@ -348,6 +370,11 @@ Return this exact JSON shape:
 };
 
 const normalizeGuideCompanion = (raw = {}) => {
+  const visaQuickFactsRaw =
+    raw?.visaQuickFacts && typeof raw.visaQuickFacts === "object"
+      ? raw.visaQuickFacts
+      : {};
+
   const hiddenGems = toSafeObjectList(raw.hiddenGems, [
     "name",
     "whyVisit",
@@ -360,6 +387,20 @@ const normalizeGuideCompanion = (raw = {}) => {
   return {
     headline: String(raw.headline || "").trim(),
     destinationSummary: String(raw.destinationSummary || "").trim(),
+    visaQuickFacts: {
+      travelerCitizenship: toSafeText(visaQuickFactsRaw.travelerCitizenship),
+      destination: toSafeText(visaQuickFactsRaw.destination),
+      entryRequirement: toSafeText(visaQuickFactsRaw.entryRequirement),
+      maxVisaFreeStay: toSafeText(visaQuickFactsRaw.maxVisaFreeStay),
+      typicalProcessingTime: toSafeText(visaQuickFactsRaw.typicalProcessingTime),
+      estimatedFee: toSafeText(visaQuickFactsRaw.estimatedFee),
+      requiredDocuments: toSafeTextList(visaQuickFactsRaw.requiredDocuments, 6),
+      extraNotes: toSafeTextList(visaQuickFactsRaw.extraNotes, 6),
+      officialSourceHint: toSafeText(
+        visaQuickFactsRaw.officialSourceHint,
+        "Verify with official embassy or immigration sources before booking."
+      ),
+    },
     safetyChecklist: toSafeTextList(raw.safetyChecklist, 10),
     localEtiquette: toSafeTextList(raw.localEtiquette, 10),
     packingChecklist: toSafeTextList(raw.packingChecklist, 12),

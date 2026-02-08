@@ -16,6 +16,7 @@ const questionnaireSchema = new mongoose.Schema(
       default: "",
     },
     context: {
+      citizenship: { type: String, default: "" },
       homeCountry: { type: String, default: "" },
       departureCity: { type: String, default: "" },
       currency: { type: String, default: "USD" },

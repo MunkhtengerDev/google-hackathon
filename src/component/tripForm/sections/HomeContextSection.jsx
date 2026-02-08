@@ -29,43 +29,51 @@ async function reverseGeocode(lat, lng, apiKey) {
   return { country, city };
 }
 
+async function fetchCurrencyByCountry(countryName = "") {
+  const target = String(countryName || "").trim();
+  if (!target) return "";
+
+  const res = await fetch(`https://restcountries.com/v3.1/name/${encodeURIComponent(target)}`);
+  if (!res.ok) throw new Error("Country not found");
+
+  const data = await res.json();
+  const firstMatch = Array.isArray(data) ? data[0] : null;
+  if (!firstMatch?.currencies || typeof firstMatch.currencies !== "object") {
+    throw new Error("Currency data missing");
+  }
+
+  const firstCode = Object.keys(firstMatch.currencies)[0] || "";
+  return String(firstCode).toUpperCase().slice(0, 3);
+}
+
 export default function HomeContextSection({ value, onChange, mapsApiKey, onFocusQuery }) {
   const [loading, setLoading] = useState(false);
   const [currencyLoading, setCurrencyLoading] = useState(false);
 
   // 1. Detect currency based on the text written in "Living Country"
-  const handleDetectCurrency = async () => {
-    const targetCountry = value.livingCountry;
+  const handleDetectCurrency = async ({ showMissingAlert = true } = {}) => {
+    const targetCountry = value.homeCountry || value.livingCountry;
     
     if (!targetCountry) {
-        alert("Please enter a Living Country first.");
+        if (showMissingAlert) {
+          alert("Please enter a living country first.");
+        }
         return;
     }
 
     setCurrencyLoading(true);
     try {
-        // Use free RestCountries API to find currency by country name
-        const res = await fetch(`https://restcountries.com/v3.1/name/${targetCountry}`);
-        if (!res.ok) throw new Error("Country not found");
-        
-        const data = await res.json();
-        // The API returns an array, we take the first match
-        const countryData = data[0];
-        
-        if (countryData?.currencies) {
-            // Extract the first currency key (e.g., "EUR", "USD", "MNT")
-            const currencyCode = Object.keys(countryData.currencies)[0];
-            
-            onChange({
-                ...value,
-                currency: currencyCode
-            });
-        }
+      const currencyCode = await fetchCurrencyByCountry(targetCountry);
+      if (!currencyCode) return;
+
+      onChange({
+        ...value,
+        currency: currencyCode,
+      });
     } catch (error) {
-        console.error("Could not fetch currency:", error);
-        // Fallback or alert could go here
+      console.error("Could not fetch currency:", error);
     } finally {
-        setCurrencyLoading(false);
+      setCurrencyLoading(false);
     }
   };
 
@@ -101,21 +109,22 @@ export default function HomeContextSection({ value, onChange, mapsApiKey, onFocu
 
       const next = {
         ...value,
-        citizenship: value.citizenship || detectedCountry, 
-        livingCountry: detectedCountry || value.livingCountry || "",
+        citizenship: value.citizenship || detectedCountry,
+        homeCountry: detectedCountry || value.homeCountry || value.livingCountry || "",
         departureCity: detectedCity || value.departureCity || "",
         currency: detectedCurrency || value.currency || "USD",
       };
 
       onChange(next);
-      onFocusQuery?.([next.departureCity, next.livingCountry].filter(Boolean).join(", "));
+      onFocusQuery?.([next.departureCity, next.homeCountry].filter(Boolean).join(", "));
     } catch {
       try {
         const ip = await ipFallback();
         const next = {
           ...value,
           citizenship: value.citizenship || ip.country_name || "",
-          livingCountry: ip.country_name || value.livingCountry || "",
+          homeCountry:
+            ip.country_name || value.homeCountry || value.livingCountry || "",
           departureCity: ip.city || value.departureCity || "",
           currency: ip.currency || value.currency || "USD",
         };
@@ -165,10 +174,13 @@ export default function HomeContextSection({ value, onChange, mapsApiKey, onFocu
         <Field label="Living Country" icon={<Plane className="w-3 h-3 text-gray-400" />}>
           <ControlShell className="bg-white">
             <input
-              value={value.livingCountry || ""}
+              value={value.homeCountry || value.livingCountry || ""}
               onChange={(e) => {
-                  onChange({ ...value, livingCountry: e.target.value });
+                  onChange({ ...value, homeCountry: e.target.value });
                   onFocusQuery?.(e.target.value);
+              }}
+              onBlur={() => {
+                handleDetectCurrency({ showMissingAlert: false });
               }}
               className="w-full bg-transparent text-[14px] text-[var(--ink)] outline-none placeholder:text-[#809097]"
               placeholder="e.g. United Kingdom"
@@ -193,14 +205,22 @@ export default function HomeContextSection({ value, onChange, mapsApiKey, onFocu
           <ControlShell className="bg-white flex items-center gap-2 pr-2">
             <input
               value={value.currency || "USD"}
-              onChange={(e) => onChange({ ...value, currency: e.target.value })}
+              onChange={(e) =>
+                onChange({
+                  ...value,
+                  currency: e.target.value
+                    .toUpperCase()
+                    .replace(/[^A-Z]/g, "")
+                    .slice(0, 3),
+                })
+              }
               className="flex-1 bg-transparent text-[14px] text-[var(--ink)] outline-none placeholder:text-[#809097]"
               placeholder="USD"
             />
             {/* Auto-detect button */}
             <button
-                onClick={handleDetectCurrency}
-                disabled={!value.livingCountry || currencyLoading}
+                onClick={() => handleDetectCurrency({ showMissingAlert: true })}
+                disabled={!(value.homeCountry || value.livingCountry) || currencyLoading}
                 title="Detect currency from Living Country"
                 className="flex items-center gap-1.5 rounded-md bg-gray-100 px-2 py-1 text-[10px] font-medium text-gray-600 transition hover:bg-gray-200 disabled:opacity-50"
             >

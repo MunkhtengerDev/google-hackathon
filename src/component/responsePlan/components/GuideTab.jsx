@@ -1,5 +1,5 @@
 import React from "react";
-import { Luggage, MapPin, Shield, Utensils, Wallet } from "lucide-react";
+import { FileText, Luggage, MapPin, Shield, Utensils, Wallet } from "lucide-react";
 import { Card, SectionHeader } from "../../../ui/primitives";
 
 export default function GuideTab({
@@ -13,7 +13,42 @@ export default function GuideTab({
   guideEtiquette,
   guideBookingStrategy,
   guideHiddenGems,
+  guideVisaQuickFacts,
 }) {
+  const visaFacts =
+    guideVisaQuickFacts && typeof guideVisaQuickFacts === "object"
+      ? guideVisaQuickFacts
+      : {};
+  const visaMeta = [
+    {
+      label: "Entry",
+      value: visaFacts.entryRequirement || "Unknown",
+    },
+    {
+      label: "Visa-free stay",
+      value: visaFacts.maxVisaFreeStay || "Unknown",
+    },
+    {
+      label: "Processing",
+      value: visaFacts.typicalProcessingTime || "Unknown",
+    },
+    {
+      label: "Fee",
+      value: visaFacts.estimatedFee || "Unknown",
+    },
+  ];
+  const visaDocs =
+    Array.isArray(visaFacts.requiredDocuments) && visaFacts.requiredDocuments.length
+      ? visaFacts.requiredDocuments
+      : ["No required-document checklist yet."];
+  const visaNotes =
+    Array.isArray(visaFacts.extraNotes) && visaFacts.extraNotes.length
+      ? visaFacts.extraNotes
+      : [];
+  const visaVerificationNote =
+    visaFacts.officialSourceHint ||
+    "Verify with embassy or official immigration sources before booking.";
+
   return (
     <Card>
       <SectionHeader
@@ -119,6 +154,57 @@ export default function GuideTab({
         </div>
 
         <div className="space-y-4 lg:col-span-5">
+          <div className="rounded-[22px] border border-[#e8dcc8] bg-[#fffaf1] p-4">
+            <div className="flex items-center gap-2 text-[12px] font-bold text-[#2f4954]">
+              <FileText className="h-4 w-4" />
+              Visa Quick Facts
+            </div>
+
+            {visaFacts.travelerCitizenship || visaFacts.destination ? (
+              <div className="mt-1 text-[11px] font-semibold text-[#5f7078]">
+                {visaFacts.travelerCitizenship || "Traveler"} {"->"}{" "}
+                {visaFacts.destination || "Destination"}
+              </div>
+            ) : null}
+
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              {visaMeta.map((item, idx) => (
+                <div
+                  key={`visa_meta_${idx}_${item.label}`}
+                  className="rounded-2xl border border-[#ece2d4] bg-white px-3 py-2"
+                >
+                  <div className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#7a8a92]">
+                    {item.label}
+                  </div>
+                  <div className="mt-0.5 text-[12px] font-semibold text-[#2f4954]">
+                    {item.value}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-3 space-y-2">
+              {visaDocs.map((item, idx) => (
+                <div
+                  key={`visa_doc_${idx}_${item}`}
+                  className="rounded-2xl border border-[#ece2d4] bg-white px-3 py-2 text-[12px] text-[#2f4954]"
+                >
+                  {item}
+                </div>
+              ))}
+              {visaNotes.map((item, idx) => (
+                <div
+                  key={`visa_note_${idx}_${item}`}
+                  className="rounded-2xl border border-[#ece2d4] bg-[#fffaf1] px-3 py-2 text-[12px] text-[#2f4954]"
+                >
+                  {item}
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-2 text-[11px] text-[#5f7078]">{visaVerificationNote}</div>
+          </div>
+
           <div className="rounded-[22px] border border-[#e8dcc8] bg-white p-4">
             <div className="text-[12px] font-bold text-[#2f4954]">
               Safety & Etiquette
